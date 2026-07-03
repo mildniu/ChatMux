@@ -84,9 +84,9 @@ func TestAggregateSessionStatus(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			status, process := aggregateSessionStatus(testCase.windows)
+			status, process := AggregateSessionStatus(testCase.windows)
 			if status != testCase.wantStatus || process != testCase.wantProcess {
-				t.Fatalf("aggregateSessionStatus = (%q, %q), want (%q, %q)",
+				t.Fatalf("AggregateSessionStatus = (%q, %q), want (%q, %q)",
 					status, process, testCase.wantStatus, testCase.wantProcess)
 			}
 		})
@@ -98,8 +98,8 @@ func TestSessionAggregationOverridesSessionLine(t *testing.T) {
 	// claude with a working spinner title: the session must surface claude.
 	output := "__chatmux_now\t1710000040\n" +
 		"session\t$0\tdev\t2\t1\t1710000039\tzsh\t0\t\t1709999000\n" +
-		"window\tdev\t@0\t0\tshell\t1\t1710000039\tzsh\t0\t\t1\tbinjie09\n" +
-		"window\tdev\t@1\t1\tagent\t0\t1710000010\tclaude\t0\t\t1\t⠂ refactor status\n"
+		"window\tdev\t@0\t0\tshell\t1\t1710000039\tzsh\t0\t\t1\t190\t45\tbinjie09\n" +
+		"window\tdev\t@1\t1\tagent\t0\t1710000010\tclaude\t0\t\t1\t190\t45\t⠂ refactor status\n"
 	sessions, err := ParseSessionsAt(output, time.Unix(2000000000, 0).UTC())
 	if err != nil {
 		t.Fatalf("ParseSessions failed: %v", err)

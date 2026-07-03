@@ -10,9 +10,9 @@ func TestParseSessions(t *testing.T) {
 	output := strings.Join([]string{
 		"session\t$0\tdeploy\t2\t2\t1710000000\tnode\t0\t\t1709999000",
 		"session\t$1\tlogs\t1\t0\t1710000300\tzsh\t0\t\t1710000300",
-		"window\tdeploy\t@0\t0\tapi\t1\t1710000002\tnode\t0\t\t0\tdeploy-api",
-		"window\tdeploy\t@1\t1\tworker\t0\t1710000000\tzsh\t0\t\t1\t",
-		"window\tlogs\t@2\t0\tlogs\t1\t1710000300\tzsh\t0\t\t0\tlogs-tail",
+		"window\tdeploy\t@0\t0\tapi\t1\t1710000002\tnode\t0\t\t0\t190\t45\tdeploy-api",
+		"window\tdeploy\t@1\t1\tworker\t0\t1710000000\tzsh\t0\t\t1\t190\t45\t",
+		"window\tlogs\t@2\t0\tlogs\t1\t1710000300\tzsh\t0\t\t0\t120\t30\tlogs-tail",
 	}, "\n")
 	now := time.Unix(1710000005, 0).UTC()
 	sessions, err := ParseSessionsAt(output, now)

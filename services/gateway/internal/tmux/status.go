@@ -73,7 +73,7 @@ func sessionStatus(input sessionStatusInput) string {
 	if isShellCommand(command) {
 		return SessionStatusIdle
 	}
-	if titleStatus := paneTitleStatus(input.paneTitle); titleStatus != "" {
+	if titleStatus := PaneTitleStatus(input.paneTitle); titleStatus != "" {
 		return titleStatus
 	}
 	if sessionActivityIsRecent(input.updatedAt, input.now) {
@@ -87,11 +87,11 @@ func isShellCommand(command string) bool {
 	return ok
 }
 
-// paneTitleStatus reads the working/waiting marker that Claude Code (2.x)
+// PaneTitleStatus reads the working/waiting marker that Claude Code (2.x)
 // writes as the first rune of the terminal title: a braille spinner cell
 // (U+2801-U+28FF, excluding the blank cell) while working, "✳" (or "✻" in
 // some builds) while waiting for input.
-func paneTitleStatus(title string) string {
+func PaneTitleStatus(title string) string {
 	for _, r := range title {
 		if r > 0x2800 && r <= 0x28FF {
 			return SessionStatusRunning

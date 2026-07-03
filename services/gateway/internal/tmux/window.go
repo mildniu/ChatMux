@@ -18,11 +18,17 @@ type Window struct {
 	ProcessName string    `json:"processName"`
 	AutoRename  bool      `json:"autoRename"`
 	PaneTitle   string    `json:"paneTitle"`
+	// Window dimensions feed the gateway's resize-repaint suppression and are
+	// not part of the API payload.
+	Width  int `json:"-"`
+	Height int `json:"-"`
 }
 
 func parseWindowLine(line string, now time.Time) (Window, string, error) {
-	parts := strings.Split(line, "\t")
-	if len(parts) != 12 {
+	// pane_title is the last field and may itself contain tabs, so the split
+	// is capped at the field count and the title keeps any embedded tabs.
+	parts := strings.SplitN(line, "\t", 14)
+	if len(parts) != 14 {
 		return Window{}, "", fmt.Errorf("invalid tmux window line: %q", line)
 	}
 	index, err := strconv.Atoi(parts[3])
@@ -45,9 +51,13 @@ func parseWindowLine(line string, now time.Time) (Window, string, error) {
 	if err != nil {
 		return Window{}, "", err
 	}
+	width, height, err := parseWindowDimensions(parts[11], parts[12])
+	if err != nil {
+		return Window{}, "", err
+	}
 	updatedAt := time.Unix(activity, 0).UTC()
 	processName := normalizePaneCommand(parts[7])
-	paneTitle := normalizePaneTitle(parts[11])
+	paneTitle := normalizePaneTitle(parts[13])
 	status := sessionStatus(sessionStatusInput{
 		currentCommand: parts[7],
 		now:            now,
@@ -59,8 +69,20 @@ func parseWindowLine(line string, now time.Time) (Window, string, error) {
 	return Window{
 		ID: parts[2], Index: index, Name: normalizeWindowName(parts[4]),
 		Active: active, UpdatedAt: updatedAt, ProcessName: processName, Status: status,
-		AutoRename: autoRename, PaneTitle: paneTitle,
+		AutoRename: autoRename, PaneTitle: paneTitle, Width: width, Height: height,
 	}, parts[1], nil
+}
+
+func parseWindowDimensions(width string, height string) (int, int, error) {
+	parsedWidth, err := strconv.Atoi(width)
+	if err != nil {
+		return 0, 0, fmt.Errorf("parse tmux window width: %w", err)
+	}
+	parsedHeight, err := strconv.Atoi(height)
+	if err != nil {
+		return 0, 0, fmt.Errorf("parse tmux window height: %w", err)
+	}
+	return parsedWidth, parsedHeight, nil
 }
 
 func applyParsedWindows(
@@ -75,7 +97,7 @@ func applyParsedWindows(
 		}
 		sessions[index].WindowList = windows
 		sessions[index].Windows = len(windows)
-		status, processName := aggregateSessionStatus(windows)
+		status, processName := AggregateSessionStatus(windows)
 		sessions[index].Status = status
 		sessions[index].ProcessName = processName
 	}
@@ -91,12 +113,12 @@ var sessionStatusPrecedence = []string{
 	SessionStatusUnknown,
 }
 
-// aggregateSessionStatus rolls window statuses up to the session: any running
+// AggregateSessionStatus rolls window statuses up to the session: any running
 // window makes the session running, else any waiting window, and so on down
 // the precedence list. The process name follows the status-determining window,
 // so a session shows "claude running" even while its active pane is a shell in
 // another window.
-func aggregateSessionStatus(windows []Window) (string, string) {
+func AggregateSessionStatus(windows []Window) (string, string) {
 	for _, status := range sessionStatusPrecedence {
 		for _, window := range windows {
 			if window.Status == status {
