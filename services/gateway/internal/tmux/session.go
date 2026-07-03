@@ -13,6 +13,9 @@ import (
 const listSessionFormat = "session\t#{session_id}\t#{session_name}\t#{session_windows}\t#{session_attached}\t#{session_activity}\t#{pane_current_command}\t#{pane_dead}\t#{pane_dead_status}\t#{session_created}"
 const listWindowFormat = "window\t#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_activity}\t#{pane_current_command}\t#{pane_dead}\t#{pane_dead_status}\t#{automatic-rename}\t#{window_width}\t#{window_height}\t#{pane_title}"
 const listSessionNowPrefix = "__chatmux_now\t"
+const listPaneScanFormat = "#{window_id}\t#{pane_active}\t#{pane_current_command}\t#{pane_id}\t#{pane_tty}"
+const listScreenPrefix = "__chatmux_screen\t"
+const listProcessPrefix = "__chatmux_pscan\t"
 const terminalOverridesClipboardSlot = "terminal-overrides[900]"
 const tmuxDefaultHistoryLimit = 100000
 const maxSessionNameRunes = 64
@@ -137,8 +140,12 @@ func ParseSessionsAt(output string, now time.Time) ([]Session, error) {
 	sessions := []Session{}
 	sessionIndexes := map[string]int{}
 	pendingWindows := map[string][]Window{}
+	scan := newPaneScan()
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if scan.consumeLine(line) {
 			continue
 		}
 		if strings.HasPrefix(line, "window\t") {
@@ -156,6 +163,7 @@ func ParseSessionsAt(output string, now time.Time) ([]Session, error) {
 		sessionIndexes[session.Name] = len(sessions)
 		sessions = append(sessions, session)
 	}
+	scan.applyToWindows(pendingWindows)
 	sessions = applyParsedWindows(sessions, pendingWindows, sessionIndexes)
 	return sessions, nil
 }
@@ -275,7 +283,28 @@ func rawListSessionsCommand() string {
 		"windows_output=$(\"$TMUX_BIN\" list-windows -a -F " + shellQuote(listWindowFormat) + " 2>&1); " +
 		"windows_status=$?; " +
 		"if [ \"$windows_status\" -ne 0 ]; then if chatmux_tmux_no_sessions \"$windows_output\"; then exit 0; fi; printf '%s\\n' \"$windows_output\" >&2; exit \"$windows_status\"; fi; " +
-		"printf '__chatmux_now\\t%s\\n' \"$(date +%s)\"; printf '%s\\n' \"$sessions_output\"; printf '%s\\n' \"$windows_output\""
+		"printf '__chatmux_now\\t%s\\n' \"$(date +%s)\"; printf '%s\\n' \"$sessions_output\"; printf '%s\\n' \"$windows_output\"; " +
+		rawPaneScanCommand()
+}
+
+// rawPaneScanCommand emits a checksum of the visible screen content for every
+// active non-shell pane, plus one global tty-to-command process dump. The
+// checksum lets the gateway detect real output (screen content changing)
+// instead of trusting #{window_activity}, which repaints triggered by
+// attach/detach/resize/focus also bump. The process dump identifies agents
+// like codex that hide behind a generic runtime (pane_current_command reports
+// "node"); it runs once because per-tty ps invocations are ~20x slower.
+func rawPaneScanCommand() string {
+	// The shell skip-list mirrors shellCommandNames in status.go.
+	return "\"$TMUX_BIN\" list-panes -a -F " + shellQuote(listPaneScanFormat) + " 2>/dev/null | " +
+		"while IFS=\"$(printf '\\t')\" read -r wid active cmd pane tty; do " +
+		"[ \"$active\" = \"1\" ] || continue; " +
+		"cmd=${cmd##*/}; cmd=${cmd#-}; " +
+		"case \"$cmd\" in zsh|bash|sh|fish|dash|ksh|csh|tcsh|'') continue;; esac; " +
+		"printf '__chatmux_screen\\t%s\\t%s\\t%s\\n' \"$wid\" \"$tty\" \"$(\"$TMUX_BIN\" capture-pane -p -t \"$pane\" 2>/dev/null | cksum)\"; " +
+		"done; " +
+		"ps -eo tty=,args= 2>/dev/null | grep -v '^?' | while read -r tty args; do " +
+		"printf '__chatmux_pscan\\t%s\\t%s\\n' \"$tty\" \"$args\"; done"
 }
 
 func rawListSessionsAfterSuccessCommand() string {

@@ -18,10 +18,12 @@ type Window struct {
 	ProcessName string    `json:"processName"`
 	AutoRename  bool      `json:"autoRename"`
 	PaneTitle   string    `json:"paneTitle"`
-	// Window dimensions feed the gateway's resize-repaint suppression and are
-	// not part of the API payload.
-	Width  int `json:"-"`
-	Height int `json:"-"`
+	// Window dimensions and the visible-screen checksum feed the gateway's
+	// screen-fingerprint activity tracking; they are not part of the API
+	// payload.
+	Width      int    `json:"-"`
+	Height     int    `json:"-"`
+	ScreenHash string `json:"-"`
 }
 
 func parseWindowLine(line string, now time.Time) (Window, string, error) {

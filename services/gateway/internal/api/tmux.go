@@ -60,7 +60,7 @@ func (s *Server) handleListTmuxSessions(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
-	s.resizeStatus.Apply(hostID, sessions, time.Now())
+	s.paneActivity.Apply(hostID, sessions, time.Now())
 	sessions, err = s.applyVisibleSessionMetadata(r, host, sessions)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -148,7 +148,7 @@ func (s *Server) runTmuxListCommand(r *http.Request, hostID string, credential s
 	if err != nil {
 		return nil, err
 	}
-	s.resizeStatus.Apply(hostID, sessions, time.Now())
+	s.paneActivity.Apply(hostID, sessions, time.Now())
 	return s.applyVisibleSessionMetadata(r, host, sessions)
 }
 

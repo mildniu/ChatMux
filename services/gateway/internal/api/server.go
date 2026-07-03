@@ -16,7 +16,7 @@ type Server struct {
 	credentialTokens       *credentialTokenStore
 	drafter                CommandDrafter
 	hosts                  *hoststore.Store
-	resizeStatus           *resizeSuppressor
+	paneActivity           *paneActivityTracker
 	ssh                    sshRunner
 	sshFallback            *sshFallbackStore
 	summarizer             TranscriptSummarizer
@@ -74,7 +74,7 @@ func NewServer(hosts *hoststore.Store, options ...ServerOption) *Server {
 		commandPolicy:          mustCommandPolicy(CommandPolicyConfig{}),
 		credentialTokens:       newCredentialTokenStore(),
 		hosts:                  hosts,
-		resizeStatus:           newResizeSuppressor(),
+		paneActivity:           newPaneActivityTracker(),
 		ssh:                    sshclient.NewClient(),
 		sshFallback:            newSSHFallbackStore(),
 		terminalTokens:         newTerminalTokenStore(),
