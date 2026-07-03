@@ -122,7 +122,10 @@ function SessionRow({
           </small>
           {session.tags.length > 0 ? <i>{session.tags.join(", ")}</i> : null}
         </span>
-        <em className={session.displayStatus}>{session.statusLabel}</em>
+        {session.unreadWindows > 0 ? (
+          <span className="unread-dot" role="status" aria-label={`${session.unreadWindows} unread window${session.unreadWindows === 1 ? "" : "s"}`} />
+        ) : null}
+        <em className={`${session.displayStatus}${session.unreadWindows > 0 ? " unread" : ""}`}>{session.statusLabel}</em>
         <ChevronRight className={isExpanded ? "expanded" : ""} size={17} aria-hidden="true" />
       </button>
       {onDeleteSession ? (

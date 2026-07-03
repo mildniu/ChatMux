@@ -1,4 +1,4 @@
-const CACHE_VERSION = "chatmux-pwa-v3";
+const CACHE_VERSION = "chatmux-pwa-v4";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
@@ -22,6 +22,21 @@ self.addEventListener("activate", (event) => {
     )),
   );
   self.clients.claim();
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const data = event.notification.data || {};
+  event.waitUntil((async () => {
+    const clients = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
+    const client = clients[0];
+    if (client) {
+      await client.focus();
+      client.postMessage(data);
+      return;
+    }
+    await self.clients.openWindow("/");
+  })());
 });
 
 self.addEventListener("fetch", (event) => {

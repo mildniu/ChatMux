@@ -245,12 +245,14 @@ export function App() {
     getCredentialToken: getSelectedHostCredentialToken,
     hostId: selectedHostId,
     hostName: selectedHost?.name ?? "ChatMux",
-    mobilePanel,
     onError: setError,
+    onOpenWindow: (sessionName, windowIndex) => void sessionWorkflow.handleOpenSessionWindow(sessionName, windowIndex),
     onSessionsChange: tmuxWindowActions.applySessionRefresh,
     selectedSessionName: selection.selectedSessionName,
+    selectedWindowIndex: selection.selectedWindowIndex,
     sessions,
     sshReady: Boolean(selectedHostId && sshCredential.ready && hostTrusted),
+    terminalVisible: Boolean(terminalSessionKey) && (!isMobileLayout || mobilePanel === "terminal"),
   });
   const displaySessions = sessionState.displaySessions;
   const selectedSession = displaySessions.find((session) => session.name === selection.selectedSessionName);

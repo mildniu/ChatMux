@@ -5,7 +5,7 @@ import { horizontalListSortingStrategy, SortableContext, useSortable } from "@dn
 import { CSS } from "@dnd-kit/utilities";
 import { InlineNameEdit } from "./InlineNameEdit";
 import { type TmuxWindow } from "./api";
-import { type DisplayTmuxSession } from "./session-state-machine";
+import { type DisplayTmuxSession, type DisplayTmuxWindow } from "./session-state-machine";
 import { windowDisplayLabel, windowLabel } from "./session-window-utils";
 import { isSSHFallbackSession } from "./tmux-fallback";
 import { OverflowText } from "./OverflowText";
@@ -81,7 +81,7 @@ export function TerminalWindowTabs(props: TerminalWindowTabsProps) {
         >
           {session.windowList.map((window) => (
             <option key={windowSortId(window)} value={window.index}>
-              #{window.index} {windowDisplayLabel(window)}
+              {window.unread ? "● " : ""}#{window.index} {windowDisplayLabel(window)}
             </option>
           ))}
         </select>
@@ -120,7 +120,7 @@ function WindowTab(props: {
   editing: boolean;
   isSelected: boolean;
   sessionName: string;
-  window: TmuxWindow;
+  window: DisplayTmuxWindow;
   onDeleteWindow: (sessionName: string, windowIndex: number) => void;
   onEdit: () => void;
   onOpenWindow: (sessionName: string, windowIndex: number) => void;
@@ -146,7 +146,7 @@ function WindowTab(props: {
     <div
       ref={setNodeRef}
       style={style}
-      className={`terminal-window-tab ${props.isSelected ? "selected" : ""} ${props.showActions ? "" : "no-actions"} ${isDragging ? "dragging" : ""}`}
+      className={`terminal-window-tab ${props.isSelected ? "selected" : ""} ${props.showActions ? "" : "no-actions"} ${isDragging ? "dragging" : ""} ${props.window.unread ? "unread" : ""}`}
       {...attributes}
       {...listeners}
     >
@@ -161,6 +161,7 @@ function WindowTab(props: {
       >
         {props.window.active ? <Terminal size={14} aria-hidden="true" /> : <Monitor size={14} aria-hidden="true" />}
         <OverflowText>{windowDisplayLabel(props.window)}</OverflowText>
+        {props.window.unread ? <span className="unread-dot" role="status" aria-label="Unread output" /> : null}
       </button>
       {props.showActions ? (
         <button

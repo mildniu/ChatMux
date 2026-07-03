@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type SessionStatus } from "./api";
-import { type DisplayTmuxSession } from "./session-state-machine";
 import {
   ensureSessionNotificationPermission,
-  sendSessionStatusNotification,
-  type SessionStatusChange,
+  notificationClickMessageType,
+  sendWindowFinishedNotification,
+  sessionNotificationPermissionGranted,
 } from "./session-notifications";
+import { type WindowFinishedEvent } from "./window-transitions";
 import { errorMessage } from "./view-utils";
 
 export type SessionNotificationStatus = "credential-error" | "credential-needed" | "denied" | "enabling" | "off" | "watching";
@@ -13,123 +13,172 @@ export type SessionNotificationStatus = "credential-error" | "credential-needed"
 type SessionNotificationsOptions = {
   hostId: string;
   hostName: string;
-  sessions: DisplayTmuxSession[];
   sshReady: boolean;
   onError: (message: string) => void;
+  onOpenWindow: (sessionName: string, windowIndex: number) => void;
 };
 
-type SessionSnapshot = {
-  hostId: string;
-  statuses: Map<string, SessionStatus>;
-};
+const alertsStorageKey = "chatmux:session-alerts";
+
+function readStoredAlertsEnabled() {
+  return localStorage.getItem(alertsStorageKey) === "on";
+}
+
+function persistAlertsEnabled(enabled: boolean) {
+  localStorage.setItem(alertsStorageKey, enabled ? "on" : "off");
+}
 
 export function useSessionNotifications(options: SessionNotificationsOptions) {
-  const [enabled, setEnabledState] = useState(false);
-  const [status, setStatus] = useState<SessionNotificationStatus>("off");
-  const snapshotRef = useRef<SessionSnapshot>(emptySnapshot());
+  const [enabled, setEnabledState] = useState(readStoredAlertsEnabled);
+  const [enabling, setEnabling] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [credentialError, setCredentialError] = useState(false);
+  const status = notificationStatus({
+    credentialError,
+    enabled,
+    enabling,
+    permissionDenied,
+    ready: Boolean(options.hostId) && options.sshReady,
+  });
+  const statusRef = useRef(status);
+  statusRef.current = status;
 
+  // On load with alerts stored on, verify the permission is still granted
+  // without prompting; if the user revoked it, surface "denied" in the UI.
   useEffect(() => {
-    syncSessionSnapshot({ enabled, options, snapshotRef });
-  }, [enabled, options.hostId, options.hostName, options.onError, options.sessions]);
+    if (!enabled) {
+      return;
+    }
+    let active = true;
+    void sessionNotificationPermissionGranted().then((granted) => {
+      if (active && !granted) {
+        setPermissionDenied(true);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [enabled]);
 
-  useEffect(() => {
-    syncCredentialStatus(enabled, options.hostId, options.sshReady, setStatus);
-  }, [enabled, options.hostId, options.sshReady]);
+  useNotificationClickMessages(options.hostId, options.onOpenWindow);
 
   const setEnabled = useCallback(async (nextEnabled: boolean) => {
-    await updateNotificationEnabled(nextEnabled, setEnabledState, setStatus, options.onError);
+    await updateNotificationEnabled(nextEnabled, {
+      setEnabledState,
+      setEnabling,
+      setPermissionDenied,
+      onError: options.onError,
+    });
   }, [options.onError]);
 
-  const markRefreshError = useCallback(() => {
-    if (enabled) {
-      setStatus("credential-error");
+  const notifyFinished = useCallback((events: WindowFinishedEvent[]) => {
+    if (statusRef.current !== "watching") {
+      return;
     }
-  }, [enabled]);
-  const markRefreshSuccess = useCallback(() => {
-    if (enabled && options.hostId && options.sshReady) {
-      setStatus("watching");
+    for (const event of events) {
+      void sendWindowFinishedNotification({
+        event,
+        hostName: options.hostName,
+        onOpenWindow: options.onOpenWindow,
+      }).catch((error) => options.onError(errorMessage(error)));
     }
-  }, [enabled, options.hostId, options.sshReady]);
+  }, [options.hostName, options.onError, options.onOpenWindow]);
 
-  return { enabled, markRefreshError, markRefreshSuccess, setEnabled, status };
+  const markRefreshError = useCallback(() => setCredentialError(true), []);
+  const markRefreshSuccess = useCallback(() => setCredentialError(false), []);
+
+  return { enabled, markRefreshError, markRefreshSuccess, notifyFinished, setEnabled, status };
 }
 
-function syncCredentialStatus(
-  enabled: boolean,
-  hostId: string,
-  sshReady: boolean,
-  setStatus: (status: SessionNotificationStatus) => void,
-) {
-  if (!enabled || !hostId) {
-    return;
+function notificationStatus(state: {
+  credentialError: boolean;
+  enabled: boolean;
+  enabling: boolean;
+  permissionDenied: boolean;
+  ready: boolean;
+}): SessionNotificationStatus {
+  if (state.enabling) {
+    return "enabling";
   }
-  if (!sshReady) {
-    setStatus("credential-needed");
-    return;
+  if (state.permissionDenied) {
+    return "denied";
   }
-  setStatus("watching");
+  if (!state.enabled) {
+    return "off";
+  }
+  if (!state.ready) {
+    return "credential-needed";
+  }
+  if (state.credentialError) {
+    return "credential-error";
+  }
+  return "watching";
 }
 
-async function updateNotificationEnabled(
-  enabled: boolean,
-  setEnabledState: (enabled: boolean) => void,
-  setStatus: (status: SessionNotificationStatus) => void,
-  onError: (message: string) => void,
-) {
+async function updateNotificationEnabled(enabled: boolean, actions: {
+  setEnabledState: (enabled: boolean) => void;
+  setEnabling: (enabling: boolean) => void;
+  setPermissionDenied: (denied: boolean) => void;
+  onError: (message: string) => void;
+}) {
   if (!enabled) {
-    setEnabledState(false);
-    setStatus("off");
+    persistAlertsEnabled(false);
+    actions.setEnabledState(false);
+    actions.setPermissionDenied(false);
     return;
   }
-  setStatus("enabling");
+  actions.setEnabling(true);
   try {
     await ensureSessionNotificationPermission();
-    setEnabledState(true);
-    setStatus("watching");
-    onError("");
+    persistAlertsEnabled(true);
+    actions.setEnabledState(true);
+    actions.setPermissionDenied(false);
+    actions.onError("");
   } catch (error) {
-    setEnabledState(false);
-    setStatus("denied");
-    onError(errorMessage(error));
+    persistAlertsEnabled(false);
+    actions.setEnabledState(false);
+    actions.setPermissionDenied(true);
+    actions.onError(errorMessage(error));
+  } finally {
+    actions.setEnabling(false);
   }
 }
 
-function syncSessionSnapshot(args: {
-  enabled: boolean;
-  options: SessionNotificationsOptions;
-  snapshotRef: React.MutableRefObject<SessionSnapshot>;
-}) {
-  const nextSnapshot = sessionSnapshot(args.options.hostId, args.options.sessions);
-  if (!args.enabled || args.snapshotRef.current.hostId !== args.options.hostId) {
-    args.snapshotRef.current = nextSnapshot;
-    return;
-  }
-  for (const change of sessionStatusChanges(args.options, args.snapshotRef.current)) {
-    void sendSessionStatusNotification(change).catch((error) => {
-      args.options.onError(errorMessage(error));
-    });
-  }
-  args.snapshotRef.current = nextSnapshot;
-}
-
-function sessionStatusChanges(options: SessionNotificationsOptions, snapshot: SessionSnapshot) {
-  const changes: SessionStatusChange[] = [];
-  for (const session of options.sessions) {
-    const previousStatus = snapshot.statuses.get(session.id);
-    if (previousStatus && previousStatus !== session.displayStatus) {
-      changes.push({ hostName: options.hostName, previousStatus, session });
+/**
+ * The service worker posts the notification's data back to the page when a
+ * notification is clicked; open the matching window.
+ */
+function useNotificationClickMessages(hostId: string, onOpenWindow: (sessionName: string, windowIndex: number) => void) {
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) {
+      return;
     }
+    const handleMessage = (event: MessageEvent) => {
+      const data: unknown = event.data;
+      if (!isNotificationClickMessage(data) || data.hostId !== hostId) {
+        return;
+      }
+      onOpenWindow(data.sessionName, data.windowIndex);
+    };
+    navigator.serviceWorker.addEventListener("message", handleMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", handleMessage);
+  }, [hostId, onOpenWindow]);
+}
+
+type NotificationClickMessage = {
+  hostId: string;
+  sessionName: string;
+  type: string;
+  windowIndex: number;
+};
+
+function isNotificationClickMessage(value: unknown): value is NotificationClickMessage {
+  if (!value || typeof value !== "object") {
+    return false;
   }
-  return changes;
-}
-
-function sessionSnapshot(hostId: string, sessions: DisplayTmuxSession[]): SessionSnapshot {
-  return {
-    hostId,
-    statuses: new Map(sessions.map((session) => [session.id, session.displayStatus])),
-  };
-}
-
-function emptySnapshot(): SessionSnapshot {
-  return { hostId: "", statuses: new Map() };
+  const message = value as Partial<NotificationClickMessage>;
+  return message.type === notificationClickMessageType
+    && typeof message.hostId === "string"
+    && typeof message.sessionName === "string"
+    && typeof message.windowIndex === "number";
 }

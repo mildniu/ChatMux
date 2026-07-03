@@ -258,18 +258,21 @@ func (w *sshFallbackWindow) closeTerminal() {
 	}
 }
 
+// A live fallback terminal is an interactive shell prompt, so it reports
+// "idle" (never "running") — matching how tmux shell panes are classified and
+// keeping fallback sessions out of finished-output notifications.
 func fallbackWindowStatus(terminal *sshFallbackTerminal) string {
 	if terminal != nil && !terminal.isClosed() {
-		return "running"
+		return tmux.SessionStatusIdle
 	}
-	return "unknown"
+	return tmux.SessionStatusUnknown
 }
 
 func fallbackSessionStatus(windows []tmux.Window) string {
 	for _, window := range windows {
-		if window.Status == "running" {
-			return "running"
+		if window.Status == tmux.SessionStatusIdle {
+			return tmux.SessionStatusIdle
 		}
 	}
-	return "unknown"
+	return tmux.SessionStatusUnknown
 }

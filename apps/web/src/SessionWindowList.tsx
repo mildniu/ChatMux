@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Monitor, Pencil, Terminal, Trash2 } from "lucide-react";
 import { InlineNameEdit } from "./InlineNameEdit";
-import { type TmuxWindow } from "./api";
+import { type DisplayTmuxWindow } from "./session-state-machine";
 import { windowDisplayLabel, windowLabel } from "./session-window-utils";
 import { OverflowText } from "./OverflowText";
 import { formatTime } from "./view-utils";
@@ -10,7 +10,7 @@ import { useIsMobileLayout } from "./useIsMobileLayout";
 
 type SessionWindowListProps = {
   selectedWindowIndex: number | null;
-  windows: TmuxWindow[];
+  windows: DisplayTmuxWindow[];
   onDeleteWindow?: (windowIndex: number) => void;
   onMoveWindow?: (fromWindowIndex: number, toWindowIndex: number) => void;
   onOpenWindow: (windowIndex: number) => void;
@@ -25,7 +25,7 @@ export function SessionWindowList(props: SessionWindowListProps) {
   if (props.windows.length === 0) {
     return <p className="session-empty">No windows</p>;
   }
-  const renderRow = (window: TmuxWindow) => (
+  const renderRow = (window: DisplayTmuxWindow) => (
     <WindowRow
       isSelected={props.selectedWindowIndex === window.index}
       editing={editingWindowIndex === window.index}
@@ -76,7 +76,7 @@ function WindowRow({
 }: {
   editing: boolean;
   isSelected: boolean;
-  window: TmuxWindow;
+  window: DisplayTmuxWindow;
   onDeleteWindow?: (windowIndex: number) => void;
   onOpenWindow: (windowIndex: number) => void;
   onRenameWindow?: (windowIndex: number, name: string) => Promise<void> | void;
@@ -118,7 +118,8 @@ function WindowRow({
             {formatTime(window.updatedAt)}
           </small>
         </span>
-        <em className={window.status}>{window.status}</em>
+        {window.unread ? <span className="unread-dot" role="status" aria-label="Unread output" /> : null}
+        <em className={`${window.status}${window.unread ? " unread" : ""}`}>{window.status}</em>
       </button>
       {canRename ? (
         <button className="session-window-action" type="button" aria-label={`Rename ${windowLabel(window)}`} onClick={onStartEditing}>

@@ -55,8 +55,8 @@ func TestParseSessions(t *testing.T) {
 	if sessions[0].WindowList[1].PaneTitle != "" {
 		t.Fatalf("expected worker window empty paneTitle, got %#v", sessions[0].WindowList[1])
 	}
-	if sessions[1].Status != SessionStatusDone {
-		t.Fatalf("expected done, got %q", sessions[1].Status)
+	if sessions[1].Status != SessionStatusIdle {
+		t.Fatalf("expected idle shell session, got %q", sessions[1].Status)
 	}
 	if !sessions[0].CreatedAt.Equal(time.Unix(1709999000, 0).UTC()) {
 		t.Fatalf("expected deploy createdAt from session_created, got %v", sessions[0].CreatedAt)
@@ -86,12 +86,12 @@ func TestParseSessionsAddsDefaultWindowForLegacyOutput(t *testing.T) {
 func TestParseSessionsDetectsPaneStatuses(t *testing.T) {
 	now := time.Unix(1710000040, 0).UTC()
 	output := strings.Join([]string{
-		"$0\trunning\t1\t0\t1710000020\tnode\t0\t",
-		"$1\tattached-done\t1\t1\t1710000001\tzsh\t0\t",
-		"$2\tshell-done\t1\t0\t1710000002\t/bin/bash\t0\t",
+		"$0\trunning\t1\t0\t1710000038\tnode\t0\t",
+		"$1\tattached-shell\t1\t1\t1710000038\tzsh\t0\t",
+		"$2\tshell-idle\t1\t0\t1710000002\t/bin/bash\t0\t",
 		"$3\tfailed\t1\t0\t1710000003\tsh\t1\t2",
 		"$4\tunknown\t1\t0\t1710000004\t\t0\t",
-		"$5\tdone\t1\t0\t1710000005\tnode\t0\t",
+		"$5\twaiting\t1\t0\t1710000005\tnode\t0\t",
 		"$6\tdead-done\t1\t0\t1710000006\tsh\t1\t0",
 	}, "\n")
 	sessions, err := ParseSessionsAt(output, now)
@@ -99,8 +99,8 @@ func TestParseSessionsDetectsPaneStatuses(t *testing.T) {
 		t.Fatalf("ParseSessions failed: %v", err)
 	}
 	want := []string{
-		SessionStatusRunning, SessionStatusDone, SessionStatusDone,
-		SessionStatusFailed, SessionStatusUnknown, SessionStatusDone, SessionStatusDone,
+		SessionStatusRunning, SessionStatusIdle, SessionStatusIdle,
+		SessionStatusFailed, SessionStatusUnknown, SessionStatusWaiting, SessionStatusDone,
 	}
 	for index, status := range want {
 		if sessions[index].Status != status {
@@ -110,7 +110,9 @@ func TestParseSessionsDetectsPaneStatuses(t *testing.T) {
 }
 
 func TestParseSessionsUsesRemoteNowPrefix(t *testing.T) {
-	output := "__chatmux_now\t1710000040\n$0\tdeploy\t1\t0\t1710000020\tcodex\t0\t\n"
+	// Activity is 2s before the remote clock but ~9 years before the local
+	// fallback clock: only the remote clock classifies this as running.
+	output := "__chatmux_now\t1710000040\n$0\tdeploy\t1\t0\t1710000038\tcodex\t0\t\n"
 	sessions, err := ParseSessionsAt(output, time.Unix(2000000000, 0).UTC())
 	if err != nil {
 		t.Fatalf("ParseSessions failed: %v", err)

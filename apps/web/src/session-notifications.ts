@@ -1,13 +1,14 @@
 import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
-import { type SessionStatus } from "./api";
 import { isBrowserShell } from "./runtime-platform";
-import { type DisplayTmuxSession } from "./session-state-machine";
+import { type WindowFinishedEvent } from "./window-transitions";
 
-export type SessionStatusChange = {
+export const notificationClickMessageType = "chatmux:notification-click";
+
+export type WindowFinishedNotificationArgs = {
+  event: WindowFinishedEvent;
   hostName: string;
-  previousStatus: SessionStatus;
-  session: DisplayTmuxSession;
+  onOpenWindow?: (sessionName: string, windowIndex: number) => void;
 };
 
 const notificationChannelId = "chatmux-session-status";
@@ -26,21 +27,42 @@ export async function ensureSessionNotificationPermission() {
   await ensureWebNotificationPermission();
 }
 
-export async function sendSessionStatusNotification(change: SessionStatusChange) {
-  const payload = sessionNotificationPayload(change);
+/** Whether notification permission is already granted (never prompts). */
+export async function sessionNotificationPermissionGranted() {
+  if (Capacitor.isNativePlatform()) {
+    const current = await LocalNotifications.checkPermissions();
+    return current.display === "granted";
+  }
+  return "Notification" in window && Notification.permission === "granted";
+}
+
+export async function sendWindowFinishedNotification(args: WindowFinishedNotificationArgs) {
+  const payload = windowFinishedPayload(args.hostName, args.event);
   if (Capacitor.isNativePlatform()) {
     await sendNativeNotification(payload);
     return;
   }
-  await sendWebNotification(payload);
+  await sendWebNotification(payload, args);
 }
 
-function sessionNotificationPayload(change: SessionStatusChange) {
-  const sessionName = change.session.title || change.session.name;
+type WindowNotificationPayload = ReturnType<typeof windowFinishedPayload>;
+
+function windowFinishedPayload(hostName: string, event: WindowFinishedEvent) {
+  const scope = `${event.hostId}:${event.sessionName}:${event.windowId}`;
+  const verb = event.nextStatus === "failed" ? "failed" : "finished";
   return {
-    body: `${change.hostName}: ${change.previousStatus} -> ${change.session.statusLabel}`,
-    id: notificationId(`${change.hostName}:${change.session.id}:${change.session.displayStatus}`),
-    title: `${sessionName} changed state`,
+    body: `${event.sessionTitle || event.sessionName} · ${event.windowLabel} — ${hostName}`,
+    data: {
+      hostId: event.hostId,
+      sessionName: event.sessionName,
+      type: notificationClickMessageType,
+      windowIndex: event.windowIndex,
+    },
+    id: notificationId(scope),
+    // One notification per window: a newer finish replaces the older one
+    // instead of stacking up.
+    tag: `chatmux:${scope}`,
+    title: `${event.processName} ${verb}`,
   };
 }
 
@@ -76,12 +98,13 @@ async function ensureWebNotificationPermission() {
   }
 }
 
-async function sendNativeNotification(payload: ReturnType<typeof sessionNotificationPayload>) {
+async function sendNativeNotification(payload: WindowNotificationPayload) {
   await LocalNotifications.schedule({
     notifications: [{
       autoCancel: true,
       body: payload.body,
       channelId: notificationChannelId,
+      extra: payload.data,
       group: notificationGroupId,
       id: payload.id,
       title: payload.title,
@@ -89,20 +112,27 @@ async function sendNativeNotification(payload: ReturnType<typeof sessionNotifica
   });
 }
 
-async function sendWebNotification(payload: ReturnType<typeof sessionNotificationPayload>) {
+async function sendWebNotification(payload: WindowNotificationPayload, args: WindowFinishedNotificationArgs) {
   if (Notification.permission !== "granted") {
     throw new Error("Notification permission was denied");
   }
   const options: NotificationOptions = {
     body: payload.body,
-    tag: String(payload.id),
+    data: payload.data,
+    tag: payload.tag,
   };
   const registration = await webNotificationServiceWorkerRegistration();
   if (registration) {
+    // Click handling lives in the service worker's notificationclick handler,
+    // which posts the payload data back to the page.
     await registration.showNotification(payload.title, options);
     return;
   }
-  new Notification(payload.title, options);
+  const notification = new Notification(payload.title, options);
+  notification.onclick = () => {
+    window.focus();
+    args.onOpenWindow?.(args.event.sessionName, args.event.windowIndex);
+  };
 }
 
 async function webNotificationServiceWorkerRegistration() {

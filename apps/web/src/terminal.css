@@ -109,6 +109,21 @@
   white-space: nowrap;
 }
 
+.terminal-window-tab .unread-dot {
+  width: 7px;
+  height: 7px;
+  min-width: 7px;
+  overflow: visible;
+}
+
+.terminal-window-tab.unread:not(.selected) {
+  border-color: color-mix(in srgb, var(--badge-waiting-text) 45%, var(--term-border));
+}
+
+.terminal-window-tab.unread > button:first-child {
+  color: var(--badge-waiting-text);
+}
+
 .terminal-window-delete,
 .terminal-window-add {
   display: grid;

@@ -434,6 +434,34 @@
   background: var(--badge-unknown-bg);
 }
 
+.session-window-row em.idle {
+  color: var(--badge-idle-text);
+  background: var(--badge-idle-bg);
+}
+
+.session-window-row em.waiting {
+  color: var(--badge-waiting-text);
+  background: var(--badge-waiting-bg);
+}
+
+.unread-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--badge-waiting-text);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--badge-waiting-text) 70%, transparent);
+}
+
+/* The unread dot adds a grid column to the fixed row layouts. */
+.session-row-main:has(> .unread-dot) {
+  grid-template-columns: 20px minmax(0, 1fr) auto auto 16px;
+}
+
+.session-window-row > button:first-child:has(> .unread-dot) {
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+}
+
 .session-empty {
   margin: 12px 4px 0;
   color: var(--text-muted);

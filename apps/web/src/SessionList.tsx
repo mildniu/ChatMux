@@ -307,7 +307,7 @@ function SessionNotificationsToggle(props: {
 }
 
 function SessionNotificationPrompt(props: { status: SessionNotificationStatus }) {
-  if (props.status !== "credential-needed" && props.status !== "credential-error") {
+  if (props.status !== "credential-needed" && props.status !== "credential-error" && props.status !== "denied") {
     return null;
   }
   return (
@@ -318,6 +318,9 @@ function SessionNotificationPrompt(props: { status: SessionNotificationStatus })
 }
 
 function notificationPromptLabel(status: SessionNotificationStatus) {
+  if (status === "denied") {
+    return "Notifications are blocked. Allow them for this site in your browser settings, then turn alerts back on.";
+  }
   if (status === "credential-error") {
     return "Session alerts need a valid saved SSH credential.";
   }

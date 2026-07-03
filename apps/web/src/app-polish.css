@@ -164,6 +164,24 @@
   50% { box-shadow: 0 0 10px -2px color-mix(in srgb, var(--badge-running-text) 55%, transparent); }
 }
 
+/* unread: finished-but-unseen output demands attention -------- */
+.session-row em.unread,
+.session-window-row em.unread {
+  font-weight: 600;
+  animation: badgeAttention 1.6s ease-in-out infinite;
+}
+@keyframes badgeAttention {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--badge-waiting-text) 35%, transparent); }
+  50% { box-shadow: 0 0 10px -1px color-mix(in srgb, var(--badge-waiting-text) 65%, transparent); }
+}
+.unread-dot {
+  animation: unreadDotPulse 1.6s ease-in-out infinite;
+}
+@keyframes unreadDotPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.78); opacity: 0.7; }
+}
+
 /* inputs ------------------------------------------------------ */
 .session-create input,
 .inline-name-edit input {
@@ -181,7 +199,10 @@
   .status-dot.online,
   .status-dot.connecting,
   .session-row em.running,
-  .session-window-row em.running {
+  .session-window-row em.running,
+  .session-row em.unread,
+  .session-window-row em.unread,
+  .unread-dot {
     animation: none;
   }
   .host-row:hover,

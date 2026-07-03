@@ -47,17 +47,19 @@ func parseWindowLine(line string, now time.Time) (Window, string, error) {
 	}
 	updatedAt := time.Unix(activity, 0).UTC()
 	processName := normalizePaneCommand(parts[7])
+	paneTitle := normalizePaneTitle(parts[11])
 	status := sessionStatus(sessionStatusInput{
 		currentCommand: parts[7],
 		now:            now,
 		paneDead:       paneDead,
 		paneDeadStatus: parts[9],
+		paneTitle:      paneTitle,
 		updatedAt:      updatedAt,
 	})
 	return Window{
 		ID: parts[2], Index: index, Name: normalizeWindowName(parts[4]),
 		Active: active, UpdatedAt: updatedAt, ProcessName: processName, Status: status,
-		AutoRename: autoRename, PaneTitle: normalizePaneTitle(parts[11]),
+		AutoRename: autoRename, PaneTitle: paneTitle,
 	}, parts[1], nil
 }
 
@@ -73,8 +75,36 @@ func applyParsedWindows(
 		}
 		sessions[index].WindowList = windows
 		sessions[index].Windows = len(windows)
+		status, processName := aggregateSessionStatus(windows)
+		sessions[index].Status = status
+		sessions[index].ProcessName = processName
 	}
 	return sessions
+}
+
+var sessionStatusPrecedence = []string{
+	SessionStatusRunning,
+	SessionStatusWaiting,
+	SessionStatusFailed,
+	SessionStatusDone,
+	SessionStatusIdle,
+	SessionStatusUnknown,
+}
+
+// aggregateSessionStatus rolls window statuses up to the session: any running
+// window makes the session running, else any waiting window, and so on down
+// the precedence list. The process name follows the status-determining window,
+// so a session shows "claude running" even while its active pane is a shell in
+// another window.
+func aggregateSessionStatus(windows []Window) (string, string) {
+	for _, status := range sessionStatusPrecedence {
+		for _, window := range windows {
+			if window.Status == status {
+				return status, window.ProcessName
+			}
+		}
+	}
+	return SessionStatusUnknown, ""
 }
 
 func defaultWindowList(sessionName string, updatedAt time.Time, processName string, status string) []Window {
