@@ -1,50 +1,240 @@
+/* Gateway unlock — the first thing a visitor sees. A quiet, cinematic
+   "phosphor terminal" moment: dark atmosphere, a glowing mark, one input. */
+
 .gateway-unlock-page {
+  position: relative;
   display: grid;
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
   padding: 24px;
-  background: var(--app-bg);
+  background:
+    radial-gradient(60% 45% at 50% -5%, rgba(143, 213, 178, 0.10), transparent 60%),
+    radial-gradient(45% 40% at 85% 10%, rgba(45, 212, 191, 0.06), transparent 60%),
+    var(--app-bg);
+  overflow: hidden;
 }
 
+/* atmosphere layers ---------------------------------------- */
+.gateway-unlock-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.gu-aurora {
+  position: absolute;
+  left: 50%;
+  top: -30%;
+  width: 90vmin;
+  height: 90vmin;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side, rgba(143, 213, 178, 0.14), transparent 70%);
+  filter: blur(60px);
+  animation: guAurora 9s ease-in-out infinite alternate;
+}
+@keyframes guAurora {
+  from { opacity: 0.65; transform: translateX(-58%) scale(1); }
+  to { opacity: 1; transform: translateX(-42%) scale(1.15); }
+}
+.gu-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(143, 213, 178, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(143, 213, 178, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(75% 60% at 50% 40%, #000, transparent 78%);
+  mask-image: radial-gradient(75% 60% at 50% 40%, #000, transparent 78%);
+}
+.gu-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 16%;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(143, 213, 178, 0.06) 50%,
+    transparent
+  );
+  animation: guBeam 8s ease-in-out infinite;
+}
+@keyframes guBeam {
+  0%, 45% { transform: translateY(-130%); opacity: 0; }
+  50% { opacity: 1; }
+  90%, 100% { transform: translateY(700%); opacity: 0; }
+}
+.gu-noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+:root[data-theme="light"] .gu-noise { opacity: 0.03; }
+:root[data-theme="light"] .gu-aurora { opacity: 0.5; }
+
+/* panel ------------------------------------------------------ */
 .gateway-unlock-panel {
+  position: relative;
   display: grid;
-  gap: 18px;
-  width: min(420px, 100%);
+  gap: 20px;
+  width: min(430px, 100%);
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  padding: 22px;
-  background: var(--surface-raised);
+  border-radius: 18px;
+  padding: 34px 30px 26px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 40%),
+    var(--surface-raised);
   color: var(--text);
+  box-shadow:
+    0 30px 80px -30px rgba(0, 0, 0, 0.65),
+    0 0 60px -24px rgba(143, 213, 178, 0.35);
+  animation: guPanelIn 0.7s cubic-bezier(0.22, 0.7, 0.2, 1) both;
+}
+@keyframes guPanelIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+/* glowing logo mark with an orbiting ring */
+.gateway-unlock-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  margin: -68px auto 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  background: linear-gradient(180deg, var(--surface-raised), var(--surface-sunken));
+  box-shadow:
+    0 14px 34px -12px rgba(0, 0, 0, 0.7),
+    0 0 40px -10px rgba(143, 213, 178, 0.45);
+}
+.gateway-unlock-mark svg {
+  width: 36px;
+  height: 36px;
+  color: var(--accent);
+  filter: drop-shadow(0 0 12px rgba(143, 213, 178, 0.6));
+  animation: guMarkPulse 3s ease-in-out infinite;
+}
+@keyframes guMarkPulse {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(143, 213, 178, 0.4)); }
+  50% { filter: drop-shadow(0 0 16px rgba(143, 213, 178, 0.75)); }
+}
+.gu-ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--gu-angle, 0deg),
+    transparent 0deg,
+    rgba(143, 213, 178, 0.9) 60deg,
+    transparent 140deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: guRing 4.5s linear infinite;
+}
+@property --gu-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes guRing {
+  to { --gu-angle: 360deg; }
 }
 
 .gateway-unlock-panel > header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
 }
-
-.gateway-unlock-panel > header svg {
-  width: 34px;
-  height: 34px;
+.gateway-unlock-panel > header strong {
+  font-size: 26px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+.gateway-unlock-panel > header strong em {
+  font-style: normal;
   color: var(--accent);
 }
-
-.gateway-unlock-panel strong,
-.gateway-unlock-panel span {
-  display: block;
-}
-
-.gateway-unlock-panel span {
-  margin-top: 3px;
+.gateway-unlock-panel > header span {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .gateway-unlock-error {
   margin: 0;
+  border: 1px solid color-mix(in srgb, var(--feedback-negative) 35%, transparent);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--feedback-negative) 9%, transparent);
   color: var(--feedback-negative);
-  font-size: 12px;
+  font-size: 12.5px;
   line-height: 1.45;
   word-break: break-word;
+  animation: guShake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+@keyframes guShake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-3px); }
+  40%, 60% { transform: translateX(3px); }
+}
+
+.gateway-unlock-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 2px;
+  color: var(--text-subtle);
+  font-size: 11.5px;
+}
+.gateway-unlock-note svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--accent);
+}
+
+/* roomier token control inside the unlock panel -------------- */
+.gateway-unlock-panel .gateway-token-control {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  gap: 12px;
+}
+.gateway-unlock-panel .gateway-token-control form {
+  grid-template-columns: minmax(0, 1fr) 42px 42px;
+}
+.gateway-unlock-panel .gateway-token-control form > input {
+  padding: 12px 13px;
+  border-radius: 10px;
+  font-size: 15px;
+}
+.gateway-unlock-panel .gateway-token-control form > button,
+.gateway-unlock-panel .gateway-token-biometric button {
+  border-radius: 10px;
+  min-height: 42px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gateway-unlock-panel,
+  .gateway-unlock-mark svg,
+  .gu-ring,
+  .gu-aurora,
+  .gu-beam,
+  .gateway-unlock-error {
+    animation: none;
+  }
 }

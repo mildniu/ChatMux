@@ -4,6 +4,7 @@ import { App } from "./App";
 import { registerServiceWorker } from "./pwa";
 import "./styles.css";
 import "./mobile-layout.css";
+import "./app-polish.css";
 
 registerServiceWorker();
 

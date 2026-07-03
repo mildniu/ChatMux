@@ -2,7 +2,7 @@
   display: grid;
   gap: 9px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 10px;
   background: var(--surface-raised);
 }
@@ -17,10 +17,20 @@
   font-weight: 700;
 }
 
+.gateway-token-control header > svg {
+  color: var(--accent);
+}
+
 .gateway-token-control small {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
   color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
+  background: var(--surface-sunken);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .gateway-token-control form {
@@ -32,10 +42,17 @@
 .gateway-token-control form > input {
   min-width: 0;
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 8px 9px;
   color: var(--text);
   background: var(--surface);
+  transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease);
+}
+
+.gateway-token-control form > input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint), 0 0 18px -6px var(--accent);
 }
 
 .gateway-token-control form > input::placeholder {
@@ -47,15 +64,33 @@
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--text-on-accent);
-  background: var(--accent);
+  background: linear-gradient(160deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 2px 10px -3px color-mix(in srgb, var(--accent) 55%, transparent);
+  transition: transform 140ms var(--ease), box-shadow 140ms var(--ease), filter 140ms var(--ease);
+}
+
+.gateway-token-control form > button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow: 0 5px 16px -4px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.gateway-token-control form > button:active:not(:disabled) {
+  transform: translateY(0) scale(0.96);
 }
 
 .gateway-token-control form > button:last-child,
 .gateway-token-biometric button {
   color: var(--text);
   background: var(--surface-hover);
+  box-shadow: none;
+}
+
+.gateway-token-control form > button:last-child:hover:not(:disabled) {
+  color: var(--danger-strong);
+  background: var(--danger-bg);
 }
 
 .gateway-token-biometric {

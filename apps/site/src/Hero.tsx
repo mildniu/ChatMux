@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useC, useLang } from "./ctx";
+import { useTilt } from "./fx";
 import { IconGithub, IconTerminal } from "./icons";
 
 /* ----------------------------------------------------------------
@@ -130,6 +131,8 @@ function TerminalHero() {
   const h = c.hero;
   return (
     <div className="term" aria-hidden="true">
+      <span className="term__scanlines" />
+      <span className="term__beam" />
       <div className="term__top">
         <div className="term__dots">
           <i /><i /><i />
@@ -176,9 +179,28 @@ function TerminalHero() {
   );
 }
 
+// Per-character staggered rise so the headline "types itself" into place.
+// key includes the text so the animation replays on language switch.
+function Chars({ text }: { text: string }) {
+  return (
+    <>
+      {Array.from(text).map((ch, i) => (
+        <span
+          key={`${text}-${i}`}
+          className="ch"
+          style={{ animationDelay: `${i * 34}ms` }}
+        >
+          {ch === " " ? " " : ch}
+        </span>
+      ))}
+    </>
+  );
+}
+
 export default function Hero() {
   const c = useC();
   const h = c.hero;
+  const tiltRef = useTilt<HTMLDivElement>(4);
   return (
     <section className="hero" id="top">
       <div className="wrap hero__grid">
@@ -187,10 +209,17 @@ export default function Hero() {
             <IconTerminal className="ico" style={{ width: 15, height: 15 }} />
             {h.eyebrow}
           </span>
-          <h1 className="display">
-            {h.titleLead}
+          <h1 className="display" key={h.titleLead}>
+            <Chars text={h.titleLead} />
             <br />
-            <span className="accent">{h.titleAccent}</span>
+            {/* The accent line animates as one block: per-char transforms would
+                break the parent's background-clip:text gradient. */}
+            <span
+              className="accent"
+              style={{ "--accent-delay": `${Array.from(h.titleLead).length * 34 + 60}ms` } as React.CSSProperties}
+            >
+              {h.titleAccent}
+            </span>
           </h1>
           <p className="hero__sub">{h.sub}</p>
           <div className="hero__cta">
@@ -218,7 +247,10 @@ export default function Hero() {
           </dl>
         </div>
         <div className="hero__art reveal" style={{ transitionDelay: "120ms" }}>
-          <TerminalHero />
+          <div className="term-tilt" ref={tiltRef}>
+            <div className="term-glow" aria-hidden="true" />
+            <TerminalHero />
+          </div>
         </div>
       </div>
     </section>

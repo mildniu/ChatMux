@@ -1,0 +1,246 @@
+/* the animated hero terminal: frame, CRT overlays, panes, statusbar */
+
+.term {
+  position: relative;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #060b09, #050807);
+  border: 1px solid var(--line-strong);
+  overflow: hidden;
+  box-shadow:
+    0 40px 90px -30px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(124, 255, 178, 0.04),
+    0 0 80px -20px rgba(124, 255, 178, 0.18);
+}
+/* rotating conic edge-light around the frame */
+.term::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--term-angle, 0deg),
+    transparent 0deg,
+    rgba(124, 255, 178, 0.7) 40deg,
+    rgba(45, 212, 191, 0.35) 80deg,
+    transparent 130deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: termEdge 7s linear infinite;
+  pointer-events: none;
+  z-index: 3;
+}
+@property --term-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes termEdge {
+  to { --term-angle: 360deg; }
+}
+
+/* CRT scanlines + a slow sweeping beam */
+.term__scanlines {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.014) 0 1px,
+    transparent 1px 3px
+  );
+  mix-blend-mode: overlay;
+}
+.term__beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -20%;
+  height: 18%;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(124, 255, 178, 0.05) 45%,
+    rgba(124, 255, 178, 0.09) 50%,
+    rgba(124, 255, 178, 0.05) 55%,
+    transparent
+  );
+  animation: beamSweep 7.5s ease-in-out infinite;
+}
+@keyframes beamSweep {
+  0%, 55% { transform: translateY(-120%); opacity: 0; }
+  60% { opacity: 1; }
+  85%, 100% { transform: translateY(720%); opacity: 0; }
+}
+
+.term__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  background: linear-gradient(180deg, #0c1411, #090f0d);
+  border-bottom: 1px solid var(--line);
+}
+.term__dots {
+  display: flex;
+  gap: 7px;
+}
+.term__dots i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: block;
+  transition: transform 0.25s var(--ease-spring), filter 0.25s;
+}
+.term:hover .term__dots i {
+  filter: saturate(1.3) brightness(1.1);
+}
+.term__dots i:nth-child(1) { background: #ff5f57; opacity: 0.78; }
+.term__dots i:nth-child(2) { background: #febc2e; opacity: 0.78; }
+.term__dots i:nth-child(3) { background: #28c840; opacity: 0.85; }
+.term__title {
+  flex: 1;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--text-faint);
+  letter-spacing: 0.01em;
+}
+.term__body {
+  padding: 20px 22px 18px;
+  font-family: var(--mono);
+  font-size: 0.84rem;
+  line-height: 1.85;
+  min-height: 290px;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 0;
+}
+.term__pane {
+  border-right: 1px solid var(--line);
+  padding-right: 16px;
+  min-width: 0;
+  /* Reserve space for the whole typed script (7 lines) so the pane never
+     grows/shrinks as the typewriter types or loops — otherwise the page
+     reflows and the scroll position jumps, especially on mobile. */
+  min-height: 11rem;
+}
+.term__side {
+  padding-left: 16px;
+  min-width: 0;
+}
+.term__side h6 {
+  margin: 0 0 10px;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.ln { display: block; white-space: pre-wrap; word-break: break-word; }
+.ln .c { color: var(--text-faint); }
+.ln .g { color: var(--green-bright); }
+.ln .t { color: var(--teal); }
+.ln .a { color: var(--amber); }
+.ln .p { color: #8aa2ff; }
+.ln .dim { color: var(--text-dim); }
+.term__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  background: #0e2417;
+  border-top: 1px solid rgba(124, 255, 178, 0.16);
+  color: #bfe9d2;
+}
+.term__status .s-left {
+  background: var(--green-bright);
+  color: #06140d;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 3px;
+  box-shadow: 0 0 14px -2px rgba(124, 255, 178, 0.7);
+}
+.term__status .s-sep { color: rgba(124,255,178,0.3); }
+.term__status .s-tab { color: #8fc7a6; }
+.term__status .s-tab.active {
+  background: rgba(124, 255, 178, 0.16);
+  color: var(--green-bright);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.term__status .s-right { margin-left: auto; color: #9fd9b6; }
+.caret {
+  /* Layout-neutral: zero width so appearing/moving the caret never changes
+     line wrapping. The visible bar is drawn by an absolutely positioned
+     pseudo-element (which overlaps the following hidden text). */
+  display: inline-block;
+  width: 0;
+  height: 1.05em;
+  vertical-align: -2px;
+  position: relative;
+}
+.caret::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 0;
+  width: 8px;
+  height: 1.05em;
+  background: var(--green-bright);
+  box-shadow: 0 0 10px var(--green-bright);
+  animation: blink 1.05s steps(1) infinite;
+}
+.ln-hidden {
+  visibility: hidden;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.term__side .sess {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  transition: background 0.3s var(--ease), color 0.3s var(--ease);
+}
+.term__side .sess.on {
+  background: rgba(124, 255, 178, 0.08);
+  color: var(--text);
+}
+.term__side .sess .dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--green-bright);
+  box-shadow: 0 0 8px var(--green-bright);
+  animation: dotPulse 2s ease-in-out infinite;
+}
+.term__side .sess .dot.idle { background: var(--text-faint); box-shadow: none; animation: none; }
+@keyframes dotPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.8); opacity: 0.6; }
+}
+.term__side .bar {
+  height: 4px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; margin-top: 14px;
+}
+.term__side .bar i {
+  display: block; height: 100%;
+  background: linear-gradient(90deg, var(--green-bright), var(--teal));
+  animation: pulse 3.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { width: 38%; opacity: 0.7; }
+  50% { width: 82%; opacity: 1; }
+}

@@ -1,0 +1,155 @@
+/* mobile showcase — immersive pinned gallery (desktop) + swipe carousel (touch) */
+
+.mx-carousel {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: clamp(24px, 6vw, 64px) max(20px, calc(50vw - 130px));
+}
+.mx-carousel::-webkit-scrollbar { display: none; }
+.mx-carousel .mx-phone { scroll-snap-align: center; }
+
+.mx-stage { position: relative; }
+.mx-panel {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(60% 70% at 50% 42%, rgba(124, 255, 178, 0.08), transparent 62%),
+    linear-gradient(180deg, var(--bg-1), var(--bg-0));
+}
+.mx-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  perspective: 1400px;
+}
+.mx-track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: clamp(40px, 9vw, 130px);
+  padding: 0 6vw;
+  transform: translate3d(0, -50%, 0);
+  transform-origin: center center;
+  opacity: 0; /* hidden until the scroll handler positions it, to avoid a flash */
+  will-change: transform, opacity;
+}
+.mx-phone {
+  --mx-shift-x: 0px;
+  --mx-lift: 0px;
+  --mx-depth: 0px;
+  --mx-tilt-y: 0deg;
+  --mx-scale: 1;
+  --mx-saturate: 1.16;
+  --mx-brightness: 1.02;
+  --mx-opacity: 1;
+  --mx-border-alpha: 0.6;
+  --mx-shadow-y: 56px;
+  --mx-shadow-blur: 102px;
+  --mx-shadow-spread: -29px;
+  --mx-glow-blur: 116px;
+  --mx-glow-spread: -20px;
+  --mx-glow-alpha: 0.44;
+  --mx-ring-alpha: 0.2;
+  --mx-cap-alpha: 1;
+  --mx-cap-lift: -4px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  margin: 0;
+  transform:
+    translate3d(var(--mx-shift-x), var(--mx-lift), var(--mx-depth))
+    rotateY(var(--mx-tilt-y))
+    scale(var(--mx-scale));
+  filter:
+    saturate(var(--mx-saturate))
+    brightness(var(--mx-brightness));
+  opacity: var(--mx-opacity);
+  will-change: transform, filter, opacity;
+}
+.mx-phone__screen {
+  height: clamp(320px, 70vh, 760px);
+  aspect-ratio: 1200 / 2670;
+  border-radius: clamp(20px, 2.4vw, 30px);
+  padding: 9px;
+  background: linear-gradient(180deg, #1a2420, #0a0f0d);
+  border: 1px solid rgba(124, 255, 178, var(--mx-border-alpha));
+  box-shadow:
+    0 var(--mx-shadow-y) var(--mx-shadow-blur) var(--mx-shadow-spread)
+      rgba(0, 0, 0, 0.94),
+    0 0 0 1px rgba(124, 255, 178, var(--mx-ring-alpha)),
+    0 0 var(--mx-glow-blur) var(--mx-glow-spread)
+      rgba(124, 255, 178, var(--mx-glow-alpha));
+  overflow: hidden;
+}
+.mx-phone__screen img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 14px;
+  background: #0a0f0d;
+}
+.mx-phone__cap {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: rgba(187, 201, 194, var(--mx-cap-alpha));
+  letter-spacing: -0.01em;
+  transform: translateY(var(--mx-cap-lift));
+  opacity: var(--mx-cap-alpha);
+}
+.mx-phone.is-active .mx-phone__cap { color: var(--green-bright); }
+.mx-dots {
+  position: absolute;
+  bottom: clamp(22px, 4.5vh, 48px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 11px;
+  z-index: 3;
+}
+.mx-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+  transition: all 0.25s var(--ease);
+}
+.mx-dot:hover { background: rgba(255, 255, 255, 0.32); }
+.mx-dot.is-on {
+  background: var(--green-bright);
+  box-shadow: 0 0 12px var(--green-bright);
+  transform: scale(1.3);
+}
+.mx-hint {
+  position: absolute;
+  top: clamp(18px, 3.5vh, 34px);
+  right: clamp(22px, 4vw, 52px);
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--text-faint);
+  letter-spacing: 0.06em;
+  z-index: 3;
+  animation: hintBob 2.2s ease-in-out infinite;
+}
+@keyframes hintBob {
+  0%, 100% { transform: translateX(0); opacity: 0.7; }
+  50% { transform: translateX(6px); opacity: 1; }
+}

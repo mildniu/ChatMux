@@ -37,7 +37,7 @@ export function Why() {
           {c.why.pillars.map((p, i) => (
             <div
               key={p.n}
-              className="why__cell reveal"
+              className="why__cell glow-card reveal"
               style={{ transitionDelay: `${i * 90}ms` }}
             >
               <div className="why__n">{p.n}</div>
@@ -91,7 +91,7 @@ export function Features() {
             return (
               <div
                 key={f.title}
-                className={`card reveal ${WIDE.has(i) ? "wide" : ""}`}
+                className={`card glow-card reveal ${WIDE.has(i) ? "wide" : ""}`}
                 style={{ transitionDelay: `${(i % 4) * 70}ms` }}
               >
                 <div className="ico">
@@ -530,7 +530,7 @@ export function Download() {
             return (
               <a
                 key={p.name}
-                className="dl__card reveal"
+                className="dl__card glow-card reveal"
                 href={p.href}
                 target={p.href.startsWith("http") ? "_blank" : undefined}
                 rel="noreferrer noopener"

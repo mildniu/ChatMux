@@ -3,6 +3,7 @@ import { CONTENT, type Lang } from "./i18n";
 import { LangContext } from "./ctx";
 import Hero from "./Hero";
 import { applySeoMeta } from "./seo";
+import { useActiveSection, useCardSpotlight, usePointerGlow, useScrollFx } from "./fx";
 import {
   CTA,
   Download,
@@ -15,6 +16,7 @@ import {
 import { IconGithub, IconStar } from "./icons";
 
 const GH = "https://github.com/binjie09/ChatMux";
+const NAV_SECTIONS = ["features", "mobile", "security", "selfhost", "download"];
 
 function Logo({ className }: { className?: string }) {
   return (
@@ -39,8 +41,18 @@ function Logo({ className }: { className?: string }) {
 
 function Nav({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
   const c = CONTENT[lang];
+  const scrolled = useScrollFx();
+  const active = useActiveSection(NAV_SECTIONS);
+  const links: Array<[string, string]> = [
+    ["features", c.nav.features],
+    ["mobile", lang === "en" ? "Mobile" : "移动端"],
+    ["security", c.nav.security],
+    ["selfhost", c.nav.selfhost],
+    ["download", c.nav.download],
+  ];
   return (
-    <header className="nav">
+    <header className={`nav ${scrolled ? "scrolled" : ""}`}>
+      <div className="nav__progress" aria-hidden="true" />
       <div className="wrap nav__inner">
         <a className="brand" href="#top" aria-label="ChatMux">
           <Logo className="logo" />
@@ -50,11 +62,11 @@ function Nav({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
           </span>
         </a>
         <nav className="nav__links">
-          <a href="#features">{c.nav.features}</a>
-          <a href="#mobile">{c.nav.features === "Features" ? "Mobile" : "移动端"}</a>
-          <a href="#security">{c.nav.security}</a>
-          <a href="#selfhost">{c.nav.selfhost}</a>
-          <a href="#download">{c.nav.download}</a>
+          {links.map(([id, label]) => (
+            <a key={id} href={`#${id}`} className={active === id ? "active" : ""}>
+              {label}
+            </a>
+          ))}
         </nav>
         <div className="nav__spacer" />
         <div className="nav__actions">
@@ -161,6 +173,9 @@ export default function App() {
     applySeoMeta(lang);
   }, [lang]);
 
+  usePointerGlow();
+  useCardSpotlight();
+
   // scroll-reveal: observe every `.reveal` once on mount.
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -192,7 +207,9 @@ export default function App() {
   return (
     <LangContext.Provider value={value}>
       <div className="bg-fx" />
+      <div className="bg-aurora" aria-hidden="true" />
       <div className="bg-grid" />
+      <div className="bg-spot" aria-hidden="true" />
       <div className="bg-noise" />
       <Nav lang={lang} setLang={setLang} />
       <main>
