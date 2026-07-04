@@ -47,7 +47,6 @@ copy_linux_artifacts() {
     -name "*.AppImage" -o \
     -name "*.deb" -o \
     -name "*.rpm" -o \
-    -name "*.tar.gz" -o \
     -name "*.sig" \
   \) -print0)
 
