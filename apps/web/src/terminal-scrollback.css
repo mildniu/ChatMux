@@ -12,6 +12,10 @@
   line-height: 1.45;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  /* We restore the scroll anchor ourselves after prepending older history, so
+     disable the browser's scroll-anchoring — otherwise it can fight (or double)
+     our adjustment, and it is unsupported on iOS Safari anyway. */
+  overflow-anchor: none;
   pointer-events: auto;
   touch-action: pan-y;
   user-select: text;

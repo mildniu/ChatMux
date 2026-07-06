@@ -19,11 +19,10 @@ export function TerminalScrollbackOverlay({ loadEarlier, terminal }: TerminalScr
   const loadingRef = useRef(false);
   const loadedHistoryLinesRef = useRef(0);
   const usingHistoryRef = useRef(false);
-  // Anchor captured before a history fetch; applied after React commits the
-  // newly prepended rows so scrollHeight reflects them.
+  // scrollHeight captured *before* a history fetch; after React commits the
+  // newly prepended rows we add the height delta back to the current scrollTop.
   const pendingScrollAdjustRef = useRef(false);
   const previousScrollHeightRef = useRef(0);
-  const previousScrollTopRef = useRef(0);
   const [lines, setLines] = useState(() => terminalScrollbackLines(terminal));
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -51,12 +50,14 @@ export function TerminalScrollbackOverlay({ loadEarlier, terminal }: TerminalScr
     }
   }, []);
 
-  // Restore the scroll anchor after older history is prepended. This must run
-  // *after* React commits the new rows to the DOM (and before paint) so that
-  // scrollHeight reflects the prepended content. A requestAnimationFrame was
-  // used here previously, but it races with React's commit phase — when it
-  // fired before the commit, scrollHeight still held the old value, the height
-  // delta collapsed to ~0, and the viewport got pinned at the very top.
+  // Restore the scroll anchor after older history is prepended. Must run *after*
+  // React commits the new rows (and before paint) so scrollHeight reflects them;
+  // a requestAnimationFrame raced with the commit and left the view pinned at
+  // the top. We add the prepended height to the *current* scrollTop (not a value
+  // captured when the fetch started): the fetch is async, so the user may have
+  // scrolled meanwhile, and anchoring on the stale start position yanks them
+  // back to the top ("jump back"). overflow-anchor is disabled on the overlay,
+  // so the browser leaves scrollTop untouched across the commit for us to adjust.
   useLayoutEffect(() => {
     if (!pendingScrollAdjustRef.current) {
       return;
@@ -67,7 +68,7 @@ export function TerminalScrollbackOverlay({ loadEarlier, terminal }: TerminalScr
     if (!overlay) {
       return;
     }
-    overlay.scrollTop = overlay.scrollHeight - previousScrollHeightRef.current + previousScrollTopRef.current;
+    overlay.scrollTop += overlay.scrollHeight - previousScrollHeightRef.current;
     if (overlay.scrollTop <= topLoadThresholdPx && !exhaustedRef.current) {
       void loadEarlierHistory();
     }
@@ -82,7 +83,6 @@ export function TerminalScrollbackOverlay({ loadEarlier, terminal }: TerminalScr
     loadingRef.current = true;
     setLoading(true);
     previousScrollHeightRef.current = overlay.scrollHeight;
-    previousScrollTopRef.current = overlay.scrollTop;
     try {
       const historyText = await loadEarlier(nextLineCount);
       exhaustedRef.current = loadedHistoryLinesRef.current > 0 && historyText === historyTextRef.current;
