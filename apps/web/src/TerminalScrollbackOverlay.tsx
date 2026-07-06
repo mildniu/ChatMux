@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { type Terminal } from "@xterm/xterm";
 import { terminalScrollbackLines, terminalScrollbackLinesFromText, type ScrollbackLine } from "./terminal-scrollback-lines";
 import "./terminal-scrollback.css";
@@ -19,6 +19,11 @@ export function TerminalScrollbackOverlay({ loadEarlier, terminal }: TerminalScr
   const loadingRef = useRef(false);
   const loadedHistoryLinesRef = useRef(0);
   const usingHistoryRef = useRef(false);
+  // Anchor captured before a history fetch; applied after React commits the
+  // newly prepended rows so scrollHeight reflects them.
+  const pendingScrollAdjustRef = useRef(false);
+  const previousScrollHeightRef = useRef(0);
+  const previousScrollTopRef = useRef(0);
   const [lines, setLines] = useState(() => terminalScrollbackLines(terminal));
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -46,6 +51,28 @@ export function TerminalScrollbackOverlay({ loadEarlier, terminal }: TerminalScr
     }
   }, []);
 
+  // Restore the scroll anchor after older history is prepended. This must run
+  // *after* React commits the new rows to the DOM (and before paint) so that
+  // scrollHeight reflects the prepended content. A requestAnimationFrame was
+  // used here previously, but it races with React's commit phase — when it
+  // fired before the commit, scrollHeight still held the old value, the height
+  // delta collapsed to ~0, and the viewport got pinned at the very top.
+  useLayoutEffect(() => {
+    if (!pendingScrollAdjustRef.current) {
+      return;
+    }
+    pendingScrollAdjustRef.current = false;
+    loadingRef.current = false;
+    const overlay = overlayRef.current;
+    if (!overlay) {
+      return;
+    }
+    overlay.scrollTop = overlay.scrollHeight - previousScrollHeightRef.current + previousScrollTopRef.current;
+    if (overlay.scrollTop <= topLoadThresholdPx && !exhaustedRef.current) {
+      void loadEarlierHistory();
+    }
+  }, [lines]);
+
   async function loadEarlierHistory() {
     const overlay = overlayRef.current;
     if (!overlay || !loadEarlier || loadingRef.current || exhaustedRef.current) {
@@ -54,8 +81,8 @@ export function TerminalScrollbackOverlay({ loadEarlier, terminal }: TerminalScr
     const nextLineCount = nextHistoryLineCount(loadedHistoryLinesRef.current);
     loadingRef.current = true;
     setLoading(true);
-    const previousScrollHeight = overlay.scrollHeight;
-    const previousScrollTop = overlay.scrollTop;
+    previousScrollHeightRef.current = overlay.scrollHeight;
+    previousScrollTopRef.current = overlay.scrollTop;
     try {
       const historyText = await loadEarlier(nextLineCount);
       exhaustedRef.current = loadedHistoryLinesRef.current > 0 && historyText === historyTextRef.current;
@@ -64,15 +91,12 @@ export function TerminalScrollbackOverlay({ loadEarlier, terminal }: TerminalScr
       loadedHistoryLinesRef.current = nextLineCount;
       usingHistoryRef.current = true;
       setLoadError("");
+      // Clear the loading indicator together with the new rows so the scroll
+      // measurement below excludes it; restoring the anchor is deferred to the
+      // useLayoutEffect above, which runs after these rows reach the DOM.
       setLines(parsedLines);
-      window.requestAnimationFrame(() => {
-        overlay.scrollTop = overlay.scrollHeight - previousScrollHeight + previousScrollTop;
-        loadingRef.current = false;
-        setLoading(false);
-        if (overlay.scrollTop <= topLoadThresholdPx && !exhaustedRef.current) {
-          void loadEarlierHistory();
-        }
-      });
+      setLoading(false);
+      pendingScrollAdjustRef.current = true;
     } catch (error) {
       loadingRef.current = false;
       setLoading(false);
