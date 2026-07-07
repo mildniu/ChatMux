@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -38,6 +39,39 @@ func TestResolveRemoteFilePathUsesTmuxCurrentPath(t *testing.T) {
 	}
 	if response.Path != "/srv/app" {
 		t.Fatalf("expected /srv/app, got %q", response.Path)
+	}
+}
+
+func TestResolveRemoteFilePathUsesPSMuxAfterWindowsNoExitStatus(t *testing.T) {
+	server, closeServer := newTestServer(t)
+	defer closeServer()
+	runner := &windowsPSMuxRunner{
+		psmuxOutput: "C:\\Users\\binjie09\r\n",
+		tmuxErr:     errors.New("wait: remote command exited without exit status or exit signal"),
+		tmuxOutput:  "",
+	}
+	server.ssh = runner
+	host := createTrustedTestHost(t, server)
+	token := createCredentialTokenForTest(t, server, testCredentialInput{hostID: host.ID})
+
+	body := bytes.NewBufferString(`{"credentialToken":"` + token + `","windowIndex":0}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/hosts/"+host.ID+"/tmux/sessions/0/files/resolve", body)
+	rec := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(runner.commands) != 2 || !strings.Contains(runner.commands[1], "powershell.exe -NoProfile") {
+		t.Fatalf("expected tmux command then psmux fallback, got %#v", runner.commands)
+	}
+	var response remoteFileResolveResponse
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.Path != "C:\\Users\\binjie09" {
+		t.Fatalf("expected psmux current path, got %q", response.Path)
 	}
 }
 
