@@ -715,6 +715,8 @@ type windowsPSMuxRunner struct {
 	fakeSSHRunner
 	commands    []string
 	psmuxOutput string
+	tmuxErr     error
+	tmuxOutput  string
 }
 
 func (r *windowsPSMuxRunner) Run(
@@ -730,9 +732,17 @@ func (r *windowsPSMuxRunner) Run(
 	if strings.Contains(command, "powershell.exe -NoProfile") {
 		return []byte(r.psmuxOutput), nil
 	}
+	output := r.tmuxOutput
+	if output == "" && r.tmuxErr == nil {
+		output = "'exec' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"
+	}
+	err := r.tmuxErr
+	if err == nil {
+		err = errors.New("exit status 1")
+	}
 	return nil, sshclient.CommandError{
 		Command: command,
-		Output:  "'exec' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
-		Err:     errors.New("exit status 1"),
+		Output:  output,
+		Err:     err,
 	}
 }

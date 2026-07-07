@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/chatmux/chatmux/services/gateway/internal/hoststore"
@@ -74,14 +75,32 @@ func (s *Server) runMuxOutputCommand(
 }
 
 func shouldTryPSMux(err error) bool {
-	output, ok := commandErrorOutput(err)
-	return ok && tmux.UnsupportedLoginShell(output)
+	commandError, ok := sshCommandError(err)
+	if !ok {
+		return false
+	}
+	if tmux.UnsupportedLoginShell(commandError.Output) {
+		return true
+	}
+	return commandError.Output == "" && commandExitedWithoutStatus(commandError.Err)
 }
 
 func commandErrorOutput(err error) (string, bool) {
-	var commandError sshclient.CommandError
-	if !errors.As(err, &commandError) {
+	commandError, ok := sshCommandError(err)
+	if !ok {
 		return "", false
 	}
 	return commandError.Output, true
+}
+
+func sshCommandError(err error) (sshclient.CommandError, bool) {
+	var commandError sshclient.CommandError
+	if !errors.As(err, &commandError) {
+		return sshclient.CommandError{}, false
+	}
+	return commandError, true
+}
+
+func commandExitedWithoutStatus(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "remote command exited without exit status or exit signal")
 }
