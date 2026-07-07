@@ -151,7 +151,7 @@ ChatMux 把 **tmux 会话** 作为远程工作的稳定载体：
 - pnpm 10+
 - Go 1.23+
 - Docker / Docker Compose，用于一键自托管或集成测试
-- 远程 SSH 主机需要安装 `tmux`
+- 远程 Linux/macOS SSH 主机需要安装 `tmux`；Windows SSH 主机需要安装 `psmux`（例如 `winget install --id marlocarlo.psmux`）
 
 ### 2. 本地开发运行
 
@@ -179,7 +179,7 @@ docker-compose up -d --build
 2. 添加 SSH 主机：填写主机名、端口、用户名，选择密码或私钥。
 3. 信任主机指纹：首次连接未信任 host 时，在弹窗里确认信任并自动继续连接。
 4. 保存 SSH 凭据：点击 `Save SSH credential` 生成短期凭据 token。
-5. 打开 tmux 会话：选择已有 session，或输入名称创建新 session。
+5. 打开 tmux / psmux 会话：选择已有 session，或输入名称创建新 session。
 6. 使用终端：主区域是真实终端，底部 composer 可以发送命令或粘贴输入。
 7. 查看上下文：右侧可以搜索历史、总结输出、查看审计事件。
 

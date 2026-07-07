@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/chatmux/chatmux/services/gateway/internal/hoststore"
+	"github.com/chatmux/chatmux/services/gateway/internal/sshclient"
 	"github.com/chatmux/chatmux/services/gateway/internal/tmux"
 )
 
@@ -130,6 +132,35 @@ func TestListTmuxSessionsFallsBackToSSHWhenTmuxMissing(t *testing.T) {
 	}
 }
 
+func TestListTmuxSessionsDoesNotTryPSMuxWhenTmuxMissing(t *testing.T) {
+	server, closeServer := newTestServer(t)
+	defer closeServer()
+	commands := []string{}
+	runner := &fakeSSHRunner{
+		outputForCommand: func(command string) string {
+			commands = append(commands, command)
+			return "tmux not found in PATH, CHATMUX_TMUX_BIN, or $HOME/.local/bin\n"
+		},
+	}
+	server.ssh = failingCommandRunner{fakeSSHRunner: runner}
+	host := createTrustedTestHost(t, server)
+	token := createCredentialTokenForTest(t, server, testCredentialInput{hostID: host.ID})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/hosts/"+host.ID+"/tmux/sessions/list", credentialTokenBody(token))
+	rec := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(commands) != 1 {
+		t.Fatalf("expected only the tmux command, got %#v", commands)
+	}
+	if strings.Contains(commands[0], "powershell.exe") {
+		t.Fatalf("did not expect psmux PowerShell command, got %q", commands[0])
+	}
+}
+
 func TestSSHFallbackWindowsAreGatewayManaged(t *testing.T) {
 	server, closeServer := newTestServer(t)
 	defer closeServer()
@@ -207,6 +238,35 @@ func TestListTmuxSessionsFallsBackToSSHWhenLoginShellUnsupported(t *testing.T) {
 	}
 }
 
+func TestListTmuxSessionsUsesPSMuxWhenWindowsShellUnsupported(t *testing.T) {
+	server, closeServer := newTestServer(t)
+	defer closeServer()
+	runner := &windowsPSMuxRunner{psmuxOutput: sessionWithWindowsOutput("win", []string{"powershell"})}
+	server.ssh = runner
+	host := createTrustedTestHost(t, server)
+	token := createCredentialTokenForTest(t, server, testCredentialInput{hostID: host.ID})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/hosts/"+host.ID+"/tmux/sessions/list", credentialTokenBody(token))
+	rec := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"mode":"psmux"`) || !strings.Contains(rec.Body.String(), `"win"`) {
+		t.Fatalf("expected psmux session, got %s", rec.Body.String())
+	}
+	if len(runner.commands) != 2 {
+		t.Fatalf("expected tmux then psmux commands, got %#v", runner.commands)
+	}
+	if !strings.Contains(runner.commands[0], "exec ${SHELL:-/bin/sh} -lc") {
+		t.Fatalf("expected first command to be tmux login shell, got %q", runner.commands[0])
+	}
+	if !strings.Contains(runner.commands[1], "powershell.exe -NoProfile") {
+		t.Fatalf("expected second command to be psmux PowerShell, got %q", runner.commands[1])
+	}
+}
+
 func TestCreateTmuxSessionAPI(t *testing.T) {
 	server, closeServer := newTestServer(t)
 	defer closeServer()
@@ -229,6 +289,30 @@ func TestCreateTmuxSessionAPI(t *testing.T) {
 	}
 	if strings.Contains(rec.Body.String(), `"tags":null`) {
 		t.Fatalf("expected empty tags array, got %s", rec.Body.String())
+	}
+}
+
+func TestCreateTmuxSessionUsesPSMuxWhenWindowsShellUnsupported(t *testing.T) {
+	server, closeServer := newTestServer(t)
+	defer closeServer()
+	runner := &windowsPSMuxRunner{psmuxOutput: sessionWithWindowsOutput("newwin", []string{"powershell"})}
+	server.ssh = runner
+	host := createTrustedTestHost(t, server)
+	token := createCredentialTokenForTest(t, server, testCredentialInput{hostID: host.ID})
+
+	body := bytes.NewBufferString(`{"name":"newwin","credentialToken":"` + token + `"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/hosts/"+host.ID+"/tmux/sessions", body)
+	rec := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"mode":"psmux"`) || !strings.Contains(rec.Body.String(), `"newwin"`) {
+		t.Fatalf("expected created psmux session, got %s", rec.Body.String())
+	}
+	if len(runner.commands) != 2 || !strings.Contains(runner.commands[1], "powershell.exe -NoProfile") {
+		t.Fatalf("expected psmux create command after tmux failure, got %#v", runner.commands)
 	}
 }
 
@@ -625,4 +709,30 @@ func listTmuxSessionsForTest(t *testing.T, server *Server, hostID string, token 
 		t.Fatalf("decode sessions: %v", err)
 	}
 	return sessions
+}
+
+type windowsPSMuxRunner struct {
+	fakeSSHRunner
+	commands    []string
+	psmuxOutput string
+}
+
+func (r *windowsPSMuxRunner) Run(
+	_ context.Context,
+	_ sshclient.HostConfig,
+	credential sshclient.Credential,
+	command string,
+) ([]byte, error) {
+	r.command = command
+	r.credential = credential
+	r.password = credential.Password
+	r.commands = append(r.commands, command)
+	if strings.Contains(command, "powershell.exe -NoProfile") {
+		return []byte(r.psmuxOutput), nil
+	}
+	return nil, sshclient.CommandError{
+		Command: command,
+		Output:  "'exec' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
+		Err:     errors.New("exit status 1"),
+	}
 }

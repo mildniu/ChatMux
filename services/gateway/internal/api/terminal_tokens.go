@@ -11,8 +11,9 @@ import (
 const terminalTokenTTL = 2 * time.Minute
 
 const (
-	terminalTokenModeTmux = "tmux"
-	terminalTokenModeSSH  = "ssh"
+	terminalTokenModeTmux  = "tmux"
+	terminalTokenModePSMux = "psmux"
+	terminalTokenModeSSH   = "ssh"
 )
 
 type terminalToken struct {

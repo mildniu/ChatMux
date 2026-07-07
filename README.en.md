@@ -151,7 +151,7 @@ ChatMux uses **tmux sessions** as the durable unit of remote work:
 - pnpm 10+
 - Go 1.23+
 - Docker / Docker Compose for one-command self hosting or integration tests
-- Remote SSH hosts need `tmux` installed
+- Remote Linux/macOS SSH hosts need `tmux` installed; Windows SSH hosts need `psmux` (for example, `winget install --id marlocarlo.psmux`)
 
 ### 2. Run Locally
 
@@ -178,7 +178,7 @@ After opening the web app, enter the `CHATMUX_GATEWAY_TOKEN` from `.env`, then a
 2. Add an SSH host: enter hostname, port, username, and choose password or private key auth.
 3. Trust the host fingerprint: on first connection to an untrusted host, confirm trust in the dialog and continue automatically.
 4. Save SSH credentials: click `Save SSH credential` to create a short-lived credential token.
-5. Open a tmux session: select an existing session or enter a name to create a new one.
+5. Open a tmux / psmux session: select an existing session or enter a name to create a new one.
 6. Use the terminal: the main area is a real terminal, and the bottom composer can send commands or paste input.
 7. Inspect context: search history, summarize output, and review audit events in the side panel.
 

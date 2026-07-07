@@ -214,6 +214,57 @@ func TestCreateTerminalTokenStoresSSHFallbackModeForUnsupportedLoginShell(t *tes
 	}
 }
 
+func TestCreateTerminalTokenRejectsSSHFallbackWhenPSMuxIsAvailable(t *testing.T) {
+	server, closeServer := newTestServer(t)
+	defer closeServer()
+	server.ssh = &windowsPSMuxRunner{psmuxOutput: sessionWithWindowsOutput("win", []string{"powershell"})}
+	host := createTrustedTestHost(t, server)
+	credentialID := createCredentialTokenForTest(t, server, testCredentialInput{hostID: host.ID})
+
+	body := bytes.NewBufferString(`{"credentialToken":"` + credentialID + `","mode":"ssh","windowIndex":0}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/hosts/"+host.ID+"/tmux/sessions/ssh/terminal-token", body)
+	rec := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreateTerminalTokenStoresPSMuxMode(t *testing.T) {
+	server, closeServer := newTestServer(t)
+	defer closeServer()
+	host := createTrustedTestHost(t, server)
+	credentialID := createCredentialTokenForTest(t, server, testCredentialInput{hostID: host.ID})
+
+	body := bytes.NewBufferString(`{"credentialToken":"` + credentialID + `","mode":"psmux","windowIndex":1}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/hosts/"+host.ID+"/tmux/sessions/win/terminal-token", body)
+	rec := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var response createTerminalTokenResponse
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	token, ok := server.terminalTokens.Consume(response.Token)
+	if !ok {
+		t.Fatal("expected terminal token to be stored")
+	}
+	if token.Mode != terminalTokenModePSMux {
+		t.Fatalf("expected psmux token mode, got %q", token.Mode)
+	}
+	command, err := terminalCommand(token)
+	if err != nil {
+		t.Fatalf("terminalCommand failed: %v", err)
+	}
+	if !strings.Contains(command, "powershell.exe -NoProfile") || !strings.Contains(command, "-EncodedCommand") {
+		t.Fatalf("expected psmux attach command, got %q", command)
+	}
+}
+
 func TestCreateTerminalTokenKeepsNamedSSHSessionInTmuxMode(t *testing.T) {
 	server, closeServer := newTestServer(t)
 	defer closeServer()

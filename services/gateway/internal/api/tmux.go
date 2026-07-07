@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/chatmux/chatmux/services/gateway/internal/hoststore"
-	"github.com/chatmux/chatmux/services/gateway/internal/sshclient"
 	"github.com/chatmux/chatmux/services/gateway/internal/tmux"
 )
 
@@ -46,17 +45,12 @@ func (s *Server) handleListTmuxSessions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	output, err := s.ssh.Run(r.Context(), hostToSSHConfig(host), credential, tmux.ListSessionsCommand())
+	sessions, err := s.runMuxListOnHost(r, host, credential, listMuxCommands())
 	if err != nil {
 		if session, ok := fallbackSessionFromTmuxError(err); ok {
 			writeJSON(w, http.StatusOK, []tmux.Session{s.sshFallback.Session(hostID, session.UpdatedAt)})
 			return
 		}
-		writeError(w, http.StatusBadGateway, err)
-		return
-	}
-	sessions, err := tmux.ParseSessions(string(output))
-	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
@@ -86,7 +80,7 @@ func (s *Server) handleCreateTmuxSession(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	command, err := tmux.CreateSessionCommand(input.Name)
+	command, err := createSessionCommands(input.Name)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
@@ -101,17 +95,12 @@ func (s *Server) handleCreateTmuxSession(w http.ResponseWriter, r *http.Request)
 		writeError(w, statusForCredentialError(err), err)
 		return
 	}
-	output, err := s.ssh.Run(r.Context(), hostToSSHConfig(host), credential, command)
+	sessions, err := s.runMuxListOnHost(r, host, credential, command)
 	if err != nil {
 		if session, ok := fallbackSessionFromTmuxError(err); ok {
 			writeJSON(w, http.StatusCreated, s.sshFallback.Session(hostID, session.UpdatedAt))
 			return
 		}
-		writeError(w, http.StatusBadGateway, err)
-		return
-	}
-	sessions, err := tmux.ParseSessions(string(output))
-	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
@@ -135,31 +124,6 @@ func (s *Server) handleCreateTmuxSession(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusCreated, session)
 }
 
-func (s *Server) runTmuxListCommand(r *http.Request, hostID string, credential sshclient.Credential, command string) ([]tmux.Session, error) {
-	host, err := s.visibleHost(r, hostID)
-	if err != nil {
-		return nil, err
-	}
-	output, err := s.runTmuxCommand(r, hostID, credential, command)
-	if err != nil {
-		return nil, err
-	}
-	sessions, err := tmux.ParseSessions(string(output))
-	if err != nil {
-		return nil, err
-	}
-	s.paneActivity.Apply(hostID, sessions, time.Now())
-	return s.applyVisibleSessionMetadata(r, host, sessions)
-}
-
-func (s *Server) runTmuxCommand(r *http.Request, hostID string, credential sshclient.Credential, command string) ([]byte, error) {
-	host, err := s.visibleHost(r, hostID)
-	if err != nil {
-		return nil, err
-	}
-	return s.ssh.Run(r.Context(), hostToSSHConfig(host), credential, command)
-}
-
 func findSessionByName(sessions []tmux.Session, name string) (tmux.Session, error) {
 	for _, session := range sessions {
 		if session.Name == name {
@@ -170,9 +134,21 @@ func findSessionByName(sessions []tmux.Session, name string) (tmux.Session, erro
 }
 
 func fallbackSessionFromTmuxError(err error) (tmux.Session, bool) {
-	var commandError sshclient.CommandError
-	if !errors.As(err, &commandError) || !tmux.Unavailable(commandError.Output) {
+	output, ok := commandErrorOutput(err)
+	if !ok || (!tmux.Unavailable(output) && !tmux.PSMuxUnavailable(output)) {
 		return tmux.Session{}, false
 	}
 	return tmux.Session{UpdatedAt: time.Now().UTC()}, true
+}
+
+func createSessionCommands(name string) (muxCommands, error) {
+	tmuxCommand, err := tmux.CreateSessionCommand(name)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	psmuxCommand, err := tmux.CreatePSMuxSessionCommand(name)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	return muxCommands{tmux: tmuxCommand, psmux: psmuxCommand}, nil
 }
