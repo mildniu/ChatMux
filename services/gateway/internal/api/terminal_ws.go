@@ -163,6 +163,9 @@ func terminalCommand(token terminalToken) (string, error) {
 	if token.Mode == terminalTokenModeSSH {
 		return "", nil
 	}
+	if token.Mode == terminalTokenModePSMux {
+		return tmux.AttachPSMuxTargetCommand(terminalTokenTarget(token))
+	}
 	return tmux.AttachTargetCommand(terminalTokenTarget(token))
 }
 

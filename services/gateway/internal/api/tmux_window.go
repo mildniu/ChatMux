@@ -19,7 +19,7 @@ type tmuxWindowRequest struct {
 	Swaps           [][]int `json:"swaps"`
 }
 
-type tmuxMutationCommand func(string, tmuxWindowRequest) (string, error)
+type tmuxMutationCommand func(string, tmuxWindowRequest) (muxCommands, error)
 type fallbackWindowMutation func(string, int, string, time.Time) (tmux.Session, error)
 
 func (s *Server) handleCreateTmuxWindow(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +53,7 @@ func (s *Server) handleMoveTmuxWindow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	command, err := tmux.MoveWindowsCommand(sessionName, swaps)
+	command, err := moveWindowCommands(sessionName, swaps)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
@@ -100,7 +100,7 @@ func (s *Server) handleDeleteTmuxSession(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	command, err := tmux.KillSessionCommand(sessionName)
+	command, err := killSessionCommands(sessionName)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
@@ -279,7 +279,7 @@ func (s *Server) runManagedTmuxListMutation(
 	hostID string,
 	sessionName string,
 	credentialToken string,
-	command string,
+	command muxCommands,
 ) ([]tmux.Session, error) {
 	host, err := s.visibleHost(r, hostID)
 	if err != nil {
@@ -292,23 +292,81 @@ func (s *Server) runManagedTmuxListMutation(
 	if err != nil {
 		return nil, err
 	}
-	return s.runTmuxListCommand(r, hostID, credential, command)
+	return s.runMuxListCommand(r, hostID, credential, command)
 }
 
-func createWindowCommand(sessionName string, input tmuxWindowRequest) (string, error) {
-	return tmux.CreateWindowCommand(sessionName, input.Name, input.WindowIndex)
+func createWindowCommand(sessionName string, input tmuxWindowRequest) (muxCommands, error) {
+	tmuxCommand, err := tmux.CreateWindowCommand(sessionName, input.Name, input.WindowIndex)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	psmuxCommand, err := tmux.CreatePSMuxWindowCommand(sessionName, input.Name, input.WindowIndex)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	return muxCommands{tmux: tmuxCommand, psmux: psmuxCommand}, nil
 }
 
-func renameWindowCommand(sessionName string, input tmuxWindowRequest) (string, error) {
-	return tmux.RenameWindowCommand(tmux.Target{SessionName: sessionName, WindowIndex: input.WindowIndex}, input.Name)
+func renameWindowCommand(sessionName string, input tmuxWindowRequest) (muxCommands, error) {
+	target := tmux.Target{SessionName: sessionName, WindowIndex: input.WindowIndex}
+	tmuxCommand, err := tmux.RenameWindowCommand(target, input.Name)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	psmuxCommand, err := tmux.RenamePSMuxWindowCommand(target, input.Name)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	return muxCommands{tmux: tmuxCommand, psmux: psmuxCommand}, nil
 }
 
-func deleteWindowCommand(sessionName string, input tmuxWindowRequest) (string, error) {
-	return tmux.KillWindowCommand(tmux.Target{SessionName: sessionName, WindowIndex: input.WindowIndex})
+func deleteWindowCommand(sessionName string, input tmuxWindowRequest) (muxCommands, error) {
+	target := tmux.Target{SessionName: sessionName, WindowIndex: input.WindowIndex}
+	tmuxCommand, err := tmux.KillWindowCommand(target)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	psmuxCommand, err := tmux.KillPSMuxWindowCommand(target)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	return muxCommands{tmux: tmuxCommand, psmux: psmuxCommand}, nil
 }
 
-func renameSessionCommand(sessionName string, input tmuxWindowRequest) (string, error) {
-	return tmux.RenameSessionCommand(sessionName, input.Name)
+func renameSessionCommand(sessionName string, input tmuxWindowRequest) (muxCommands, error) {
+	tmuxCommand, err := tmux.RenameSessionCommand(sessionName, input.Name)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	psmuxCommand, err := tmux.RenamePSMuxSessionCommand(sessionName, input.Name)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	return muxCommands{tmux: tmuxCommand, psmux: psmuxCommand}, nil
+}
+
+func moveWindowCommands(sessionName string, swaps [][]int) (muxCommands, error) {
+	tmuxCommand, err := tmux.MoveWindowsCommand(sessionName, swaps)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	psmuxCommand, err := tmux.MovePSMuxWindowsCommand(sessionName, swaps)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	return muxCommands{tmux: tmuxCommand, psmux: psmuxCommand}, nil
+}
+
+func killSessionCommands(sessionName string) (muxCommands, error) {
+	tmuxCommand, err := tmux.KillSessionCommand(sessionName)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	psmuxCommand, err := tmux.KillPSMuxSessionCommand(sessionName)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	return muxCommands{tmux: tmuxCommand, psmux: psmuxCommand}, nil
 }
 
 func (s *Server) createFallbackWindow(hostID string, _ int, name string, now time.Time) (tmux.Session, error) {

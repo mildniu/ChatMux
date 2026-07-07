@@ -25,10 +25,17 @@ export function useTerminalConnectionURL({
     const credentialToken = await getCredentialToken();
     const token = await createTerminalToken(hostId, sessionName, {
       credentialToken,
-      mode: isSSHFallbackSession(selectedSession) ? "ssh" : "tmux",
+      mode: terminalMode(selectedSession),
       recovering: status === "recovering",
       windowIndex,
     });
     return terminalWebSocketURL(token);
   }, [getCredentialToken, hostId, selectedSession, sessionName, windowIndex]);
+}
+
+function terminalMode(session: TmuxSession | undefined) {
+  if (isSSHFallbackSession(session)) {
+    return "ssh";
+  }
+  return session?.mode === "psmux" ? "psmux" : "tmux";
 }

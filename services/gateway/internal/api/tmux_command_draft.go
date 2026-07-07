@@ -89,11 +89,11 @@ func decodeCommandDraftRequest(r *http.Request) (tmuxCommandDraftRequest, error)
 }
 
 func (s *Server) draftSessionCommand(input draftSessionCommandInput) (CommandDraft, error) {
-	command, err := tmux.CaptureTargetPaneCommand(input.target, tmux.CapturePaneOptions{Lines: 200})
+	command, err := capturePaneCommands(input.target, tmux.CapturePaneOptions{Lines: 200})
 	if err != nil {
 		return CommandDraft{}, err
 	}
-	output, err := s.ssh.Run(input.request.Context(), hostToSSHConfig(input.host), input.credential, command)
+	output, err := s.runMuxOutputCommand(input.request, input.host, input.credential, command)
 	if err != nil {
 		return CommandDraft{}, err
 	}

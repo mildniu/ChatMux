@@ -79,7 +79,7 @@ func (s *Server) handleReorderTmuxSessions(w http.ResponseWriter, r *http.Reques
 		writeError(w, statusForCredentialError(err), err)
 		return
 	}
-	sessions, err := s.runTmuxListCommand(r, hostID, credential, tmux.ListSessionsCommand())
+	sessions, err := s.runMuxListCommand(r, hostID, credential, listMuxCommands())
 	if err != nil {
 		writeError(w, statusForTmuxMutationError(err), err)
 		return

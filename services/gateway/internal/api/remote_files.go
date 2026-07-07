@@ -29,7 +29,7 @@ func (s *Server) handleResolveRemoteFilePath(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	command, err := tmux.CurrentPathCommand(target)
+	command, err := currentPathCommands(target)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
@@ -38,12 +38,24 @@ func (s *Server) handleResolveRemoteFilePath(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	output, err := s.ssh.Run(r.Context(), hostToSSHConfig(host), credential, command)
+	output, err := s.runMuxOutputCommand(r, host, credential, command)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, remoteFileResolveResponse{Path: normalizeRemotePathOutput(output)})
+}
+
+func currentPathCommands(target tmux.Target) (muxCommands, error) {
+	tmuxCommand, err := tmux.CurrentPathCommand(target)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	psmuxCommand, err := tmux.CurrentPSMuxPathCommand(target)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	return muxCommands{tmux: tmuxCommand, psmux: psmuxCommand}, nil
 }
 
 func (s *Server) handleListRemoteFiles(w http.ResponseWriter, r *http.Request) {

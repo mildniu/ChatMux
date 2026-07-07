@@ -142,7 +142,7 @@ func (s *Server) runAutomationTmuxSessionsList(r *http.Request, args map[string]
 	if err != nil {
 		return nil, err
 	}
-	sessions, err := s.runTmuxListCommand(r, hostID, credential, tmux.ListSessionsCommand())
+	sessions, err := s.runMuxListCommand(r, hostID, credential, listMuxCommands())
 	if err != nil {
 		return nil, statusWrappedTmuxError(err)
 	}
@@ -154,11 +154,11 @@ func (s *Server) runAutomationTmuxHistoryCapture(r *http.Request, args map[strin
 	if err != nil {
 		return nil, err
 	}
-	command, err := tmux.CapturePaneCommand(sessionName)
+	command, err := capturePaneCommands(tmux.Target{SessionName: sessionName}, tmux.CapturePaneOptions{Lines: 200})
 	if err != nil {
 		return nil, err
 	}
-	output, err := s.ssh.Run(r.Context(), hostToSSHConfig(host), credential, command)
+	output, err := s.runMuxOutputCommand(r, host, credential, command)
 	if err != nil {
 		return nil, automationStatus(http.StatusBadGateway, err)
 	}

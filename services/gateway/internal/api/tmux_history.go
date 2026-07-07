@@ -48,7 +48,7 @@ func (s *Server) handleCaptureTmuxHistory(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	command, err := tmux.CaptureTargetPaneCommand(target, capturePaneOptions(input))
+	command, err := capturePaneCommands(target, capturePaneOptions(input))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
@@ -67,7 +67,7 @@ func (s *Server) handleCaptureTmuxHistory(w http.ResponseWriter, r *http.Request
 		writeError(w, statusForCredentialError(err), err)
 		return
 	}
-	output, err := s.ssh.Run(r.Context(), hostToSSHConfig(host), credential, command)
+	output, err := s.runMuxOutputCommand(r, host, credential, command)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
 		return
@@ -145,17 +145,29 @@ func decodeTmuxHistoryRequest(r *http.Request) (tmuxHistoryRequest, error) {
 }
 
 func (s *Server) summarizeSessionHistory(input summarizeSessionRequest) (TranscriptSummary, error) {
-	command, err := tmux.CaptureTargetPaneCommand(input.target, tmux.CapturePaneOptions{Lines: 200})
+	command, err := capturePaneCommands(input.target, tmux.CapturePaneOptions{Lines: 200})
 	if err != nil {
 		return TranscriptSummary{}, err
 	}
-	output, err := s.ssh.Run(input.request.Context(), hostToSSHConfig(input.host), input.credential, command)
+	output, err := s.runMuxOutputCommand(input.request, input.host, input.credential, command)
 	if err != nil {
 		return TranscriptSummary{}, err
 	}
 	return s.summarizer.Summarize(input.request.Context(), TranscriptSummaryInput{
 		HostName: input.host.Name, SessionName: input.sessionName, Transcript: string(output),
 	})
+}
+
+func capturePaneCommands(target tmux.Target, options tmux.CapturePaneOptions) (muxCommands, error) {
+	tmuxCommand, err := tmux.CaptureTargetPaneCommand(target, options)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	psmuxCommand, err := tmux.CapturePSMuxTargetPaneCommand(target, options)
+	if err != nil {
+		return muxCommands{}, err
+	}
+	return muxCommands{tmux: tmuxCommand, psmux: psmuxCommand}, nil
 }
 
 func statusForSummaryError(err error) int {

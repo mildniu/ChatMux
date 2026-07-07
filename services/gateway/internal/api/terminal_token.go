@@ -46,7 +46,7 @@ func (s *Server) handleCreateTerminalToken(w http.ResponseWriter, r *http.Reques
 		writeError(w, statusForHostAccessError(err), err)
 		return
 	}
-	if mode == terminalTokenModeTmux {
+	if mode != terminalTokenModeSSH {
 		if err := s.visibleSession(r, host, sessionName); err != nil {
 			writeError(w, statusForSessionAccessError(err), err)
 			return
@@ -62,7 +62,7 @@ func (s *Server) handleCreateTerminalToken(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if err := s.validateFallbackTerminalMode(r, host, credential, mode, target); err != nil {
-		writeError(w, http.StatusBadGateway, err)
+		writeError(w, statusForFallbackTerminalModeError(err), err)
 		return
 	}
 
@@ -85,6 +85,9 @@ func (s *Server) handleCreateTerminalToken(w http.ResponseWriter, r *http.Reques
 }
 
 func terminalTokenMode(input string) string {
+	if input == terminalTokenModePSMux {
+		return terminalTokenModePSMux
+	}
 	if input == terminalTokenModeSSH {
 		return terminalTokenModeSSH
 	}
@@ -117,7 +120,7 @@ func (s *Server) validateFallbackTerminalMode(
 	if _, ok := s.sshFallback.Terminal(host.ID, windowIndexValue(target.WindowIndex), time.Now()); ok {
 		return nil
 	}
-	_, err := s.ssh.Run(r.Context(), hostToSSHConfig(host), credential, tmux.ListSessionsCommand())
+	_, err := s.runMuxListCommand(r, host.ID, credential, listMuxCommands())
 	if _, ok := fallbackSessionFromTmuxError(err); ok {
 		return nil
 	}
@@ -125,4 +128,11 @@ func (s *Server) validateFallbackTerminalMode(
 		return err
 	}
 	return errSessionNotVisible
+}
+
+func statusForFallbackTerminalModeError(err error) int {
+	if errors.Is(err, errSessionNotVisible) {
+		return http.StatusNotFound
+	}
+	return http.StatusBadGateway
 }
