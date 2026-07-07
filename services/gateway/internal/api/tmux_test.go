@@ -267,6 +267,30 @@ func TestListTmuxSessionsUsesPSMuxWhenWindowsShellUnsupported(t *testing.T) {
 	}
 }
 
+func TestListTmuxSessionsMarksWindowsUnixShellOutputAsPSMux(t *testing.T) {
+	server, closeServer := newTestServer(t)
+	defer closeServer()
+	server.ssh = &fakeSSHRunner{output: strings.Join([]string{
+		"__chatmux_now\t1710000040",
+		"__chatmux_platform\tMSYS_NT-10.0-22631",
+		"session\t$0\t0\t1\t0\t1710000038\tzsh\t0\t\t1710000030",
+		"window\t0\t@0\t0\tzsh\t1\t1710000038\tzsh\t0\t\t1\t120\t30\tDESKTOP",
+	}, "\n")}
+	host := createTrustedTestHost(t, server)
+	token := createCredentialTokenForTest(t, server, testCredentialInput{hostID: host.ID})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/hosts/"+host.ID+"/tmux/sessions/list", credentialTokenBody(token))
+	rec := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"mode":"psmux"`) || strings.Contains(rec.Body.String(), `"mode":"tmux"`) {
+		t.Fatalf("expected windows unix shell output to be reported as psmux, got %s", rec.Body.String())
+	}
+}
+
 func TestCreateTmuxSessionAPI(t *testing.T) {
 	server, closeServer := newTestServer(t)
 	defer closeServer()

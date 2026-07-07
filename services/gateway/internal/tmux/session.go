@@ -13,6 +13,7 @@ import (
 const listSessionFormat = "session\t#{session_id}\t#{session_name}\t#{session_windows}\t#{session_attached}\t#{session_activity}\t#{pane_current_command}\t#{pane_dead}\t#{pane_dead_status}\t#{session_created}"
 const listWindowFormat = "window\t#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_activity}\t#{pane_current_command}\t#{pane_dead}\t#{pane_dead_status}\t#{?automatic-rename,1,0}\t#{window_width}\t#{window_height}\t#{pane_title}"
 const listSessionNowPrefix = "__chatmux_now\t"
+const listSessionPlatformPrefix = "__chatmux_platform\t"
 const listPaneScanFormat = "#{window_id}\t#{pane_active}\t#{pane_current_command}\t#{pane_id}\t#{pane_tty}"
 const listScreenPrefix = "__chatmux_screen\t"
 const listProcessPrefix = "__chatmux_pscan\t"
@@ -137,6 +138,7 @@ func ParseSessionsAt(output string, now time.Time) ([]Session, error) {
 	}
 	lines := strings.Split(trimmed, "\n")
 	lines, now = parseSessionNow(lines, now)
+	lines, mode := parseSessionPlatform(lines)
 	sessions := []Session{}
 	sessionIndexes := map[string]int{}
 	pendingWindows := map[string][]Window{}
@@ -165,6 +167,7 @@ func ParseSessionsAt(output string, now time.Time) ([]Session, error) {
 	}
 	scan.applyToWindows(pendingWindows)
 	sessions = applyParsedWindows(sessions, pendingWindows, sessionIndexes)
+	sessions = applyParsedSessionMode(sessions, mode)
 	return sessions, nil
 }
 
@@ -177,6 +180,36 @@ func parseSessionNow(lines []string, fallback time.Time) ([]string, time.Time) {
 		return lines[1:], fallback
 	}
 	return lines[1:], time.Unix(epoch, 0).UTC()
+}
+
+func parseSessionPlatform(lines []string) ([]string, string) {
+	if len(lines) == 0 || !strings.HasPrefix(lines[0], listSessionPlatformPrefix) {
+		return lines, "tmux"
+	}
+	platform := strings.TrimPrefix(lines[0], listSessionPlatformPrefix)
+	if windowsUnixShellPlatform(platform) {
+		return lines[1:], "psmux"
+	}
+	return lines[1:], "tmux"
+}
+
+func windowsUnixShellPlatform(platform string) bool {
+	lower := strings.ToLower(strings.TrimSpace(platform))
+	return strings.Contains(lower, "mingw") ||
+		strings.Contains(lower, "msys") ||
+		strings.Contains(lower, "cygwin") ||
+		strings.Contains(lower, "windows") ||
+		strings.Contains(lower, "_nt")
+}
+
+func applyParsedSessionMode(sessions []Session, mode string) []Session {
+	if mode == "" || mode == "tmux" {
+		return sessions
+	}
+	for index := range sessions {
+		sessions[index].Mode = mode
+	}
+	return sessions
 }
 
 func parseSessionLine(line string, now time.Time) (Session, error) {
@@ -283,7 +316,9 @@ func rawListSessionsCommand() string {
 		"windows_output=$(\"$TMUX_BIN\" list-windows -a -F " + shellQuote(listWindowFormat) + " 2>&1); " +
 		"windows_status=$?; " +
 		"if [ \"$windows_status\" -ne 0 ]; then if chatmux_tmux_no_sessions \"$windows_output\"; then exit 0; fi; printf '%s\\n' \"$windows_output\" >&2; exit \"$windows_status\"; fi; " +
-		"printf '__chatmux_now\\t%s\\n' \"$(date +%s)\"; printf '%s\\n' \"$sessions_output\"; printf '%s\\n' \"$windows_output\"; " +
+		"printf '__chatmux_now\\t%s\\n' \"$(date +%s)\"; " +
+		"printf '__chatmux_platform\\t%s\\n' \"$(uname -s 2>/dev/null || true)\"; " +
+		"printf '%s\\n' \"$sessions_output\"; printf '%s\\n' \"$windows_output\"; " +
 		rawPaneScanCommand()
 }
 

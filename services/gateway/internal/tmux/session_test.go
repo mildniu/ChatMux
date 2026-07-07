@@ -125,6 +125,22 @@ func TestParseSessionsUsesRemoteNowPrefix(t *testing.T) {
 	}
 }
 
+func TestParseSessionsMarksWindowsUnixShellAsPSMux(t *testing.T) {
+	output := strings.Join([]string{
+		"__chatmux_now\t1710000040",
+		"__chatmux_platform\tMINGW64_NT-10.0-22631",
+		"session\t$0\twin\t1\t0\t1710000038\tzsh\t0\t\t1710000030",
+		"window\twin\t@0\t0\tzsh\t1\t1710000038\tzsh\t0\t\t1\t120\t30\tDESKTOP",
+	}, "\n")
+	sessions, err := ParseSessionsAt(output, time.Unix(2000000000, 0).UTC())
+	if err != nil {
+		t.Fatalf("ParseSessions failed: %v", err)
+	}
+	if len(sessions) != 1 || sessions[0].Mode != "psmux" {
+		t.Fatalf("expected psmux session from Windows unix shell marker, got %#v", sessions)
+	}
+}
+
 func TestParseSessionsRejectsBadLine(t *testing.T) {
 	_, err := ParseSessions("bad line")
 	if err == nil {
@@ -208,6 +224,9 @@ func TestCreateSessionCommand(t *testing.T) {
 	}
 	if !strings.Contains(command, "__chatmux_now") || !strings.Contains(command, "date +%s") {
 		t.Fatalf("expected remote now prefix, got %q", command)
+	}
+	if !strings.Contains(command, "__chatmux_platform") || !strings.Contains(command, "uname -s") {
+		t.Fatalf("expected remote platform prefix, got %q", command)
 	}
 	if !containsLoginShellFragment(command, "&& { TMUX_BIN=") {
 		t.Fatalf("expected list refresh to be gated by command success, got %q", command)
