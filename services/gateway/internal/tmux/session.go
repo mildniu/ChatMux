@@ -351,7 +351,12 @@ func loginShellCommand(command string) string {
 }
 
 func tmuxNoSessionsPrelude() string {
-	return "chatmux_tmux_no_sessions() { case \"$1\" in *\"no server running\"*|*\"no sessions\"*) return 0;; *) return 1;; esac; }; "
+	// "no server running" covers a stale socket (ECONNREFUSED); "error
+	// connecting to" covers a socket that was never created because no server
+	// has started (ENOENT, e.g. "error connecting to /tmp/tmux-1000/default
+	// (No such file or directory)"). Both mean there are no sessions to list,
+	// so the script exits 0 with empty output instead of surfacing an error.
+	return "chatmux_tmux_no_sessions() { case \"$1\" in *\"no server running\"*|*\"no sessions\"*|*\"error connecting to\"*) return 0;; *) return 1;; esac; }; "
 }
 
 func MissingTmux(output string) bool {

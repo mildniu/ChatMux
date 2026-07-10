@@ -1,6 +1,8 @@
 package tmux
 
 import (
+	"errors"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -231,12 +233,60 @@ func TestCreateSessionCommand(t *testing.T) {
 	if !containsLoginShellFragment(command, "&& { TMUX_BIN=") {
 		t.Fatalf("expected list refresh to be gated by command success, got %q", command)
 	}
-	if !containsLoginShellFragment(command, `chatmux_tmux_no_sessions() { case "$1" in *"no server running"*|*"no sessions"*) return 0`) {
+	if !containsLoginShellFragment(command, `chatmux_tmux_no_sessions() { case "$1" in *"no server running"*|*"no sessions"*|*"error connecting to"*) return 0`) {
 		t.Fatalf("expected no-session tmux guard, got %q", command)
 	}
 	if !strings.Contains(command, "exec ${SHELL:-/bin/sh} -lc") {
 		t.Fatalf("expected login shell wrapper, got %q", command)
 	}
+}
+
+func TestNoSessionsGuardRecognizesConnectionError(t *testing.T) {
+	// A host whose tmux server has never started has no socket file, so
+	// `tmux list-sessions` exits 1 with "error connecting to <socket> (No such
+	// file or directory)". The guard must treat that as "no sessions" (exit 0,
+	// empty list) instead of surfacing an SSH error — reproducing the bug where
+	// connecting to an empty host failed.
+	cases := []struct {
+		name       string
+		tmuxOutput string
+		wantNoSess bool
+	}{
+		{"missing socket means no server", "error connecting to /tmp/tmux-1000/default (No such file or directory)", true},
+		{"stale socket means no server", "no server running on /tmp/tmux-1000/default", true},
+		{"explicit no sessions", "no sessions", true},
+		{"unrelated failure stays surfaced", "tmux: unknown command: list-sessions", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := noSessionsGuardClassifies(tc.tmuxOutput)
+			if err != nil {
+				t.Fatalf("run guard: %v", err)
+			}
+			if got != tc.wantNoSess {
+				t.Fatalf("guard(%q) = noSessions=%v, want %v", tc.tmuxOutput, got, tc.wantNoSess)
+			}
+		})
+	}
+}
+
+// noSessionsGuardClassifies evaluates the generated chatmux_tmux_no_sessions
+// POSIX case statement against real tmux output and reports whether the guard
+// treats it as "no sessions" (exit 0) versus a real error (exit 1). It shells
+// out to sh because the guard is shell logic; this verifies the actual
+// escaping and glob matching that ships to hosts.
+func noSessionsGuardClassifies(tmuxOutput string) (bool, error) {
+	script := tmuxNoSessionsPrelude() +
+		"if chatmux_tmux_no_sessions " + shellQuote(tmuxOutput) + "; then exit 0; else exit 1; fi"
+	err := exec.Command("sh", "-c", script).Run()
+	if err == nil {
+		return true, nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return false, nil
+	}
+	return false, err
 }
 
 func TestAttachSessionCommand(t *testing.T) {
