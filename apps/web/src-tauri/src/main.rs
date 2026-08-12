@@ -1,3 +1,6 @@
+// Prevent console window on Windows in release builds.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::fs;
 #[cfg(target_os = "windows")]
 use std::io;
@@ -15,7 +18,12 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use keyring::Entry;
-use tauri::{Manager, Runtime};
+use serde::{Deserialize, Serialize};
+use tauri::{
+    menu::{Menu, MenuItem, PredefinedMenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Emitter, Manager, Runtime, WindowEvent,
+};
 #[cfg(not(target_os = "windows"))]
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
@@ -52,6 +60,16 @@ const GATEWAY_BINARY: &[u8] = include_bytes!(concat!(
     ".exe"
 ));
 
+const CLOSE_BEHAVIOR_FILE: &str = "close-behavior.json";
+
+/// Persistent close behavior preference.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CloseBehaviorPref {
+    /// "exit" or "minimize"
+    behavior: String,
+}
+
 #[cfg(target_os = "windows")]
 type GatewayChild = Child;
 #[cfg(not(target_os = "windows"))]
@@ -75,11 +93,87 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             clear_gateway_access_token,
             load_gateway_access_token,
-            save_gateway_access_token
+            save_gateway_access_token,
+            get_close_behavior,
+            set_close_behavior
         ])
-        .setup(start_gateway_sidecar)
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.app_handle().emit("close-requested", ());
+            }
+        })
+        .setup(setup_app)
         .run(tauri::generate_context!())
         .expect("failed to run chatmux desktop app");
+}
+
+fn setup_app<R: Runtime>(
+    app: &mut tauri::App<R>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Start gateway sidecar
+    start_gateway_sidecar(app)?;
+
+    // Build system tray
+    let show_item = MenuItem::with_id(app, "show", "Show ChatMux", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let tray_menu = Menu::with_items(app, &[&show_item, &separator, &quit_item])?;
+
+    TrayIconBuilder::with_id("main-tray")
+        .icon(app.default_window_icon().cloned().unwrap())
+        .menu(&tray_menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+            "quit" => {
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn get_close_behavior(app: tauri::AppHandle) -> Result<String, String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let pref_path = app_data_dir.join(CLOSE_BEHAVIOR_FILE);
+    if pref_path.exists() {
+        let data = fs::read_to_string(&pref_path).map_err(|e| e.to_string())?;
+        let pref: CloseBehaviorPref = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+        Ok(pref.behavior)
+    } else {
+        Ok(String::new())
+    }
+}
+
+#[tauri::command]
+fn set_close_behavior(app: tauri::AppHandle, behavior: String) -> Result<(), String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let pref = CloseBehaviorPref { behavior };
+    let data = serde_json::to_string_pretty(&pref).map_err(|e| e.to_string())?;
+    fs::write(app_data_dir.join(CLOSE_BEHAVIOR_FILE), data).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

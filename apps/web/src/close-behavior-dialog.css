@@ -1,0 +1,129 @@
+.close-behavior-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--scrim);
+}
+
+.close-behavior-dialog {
+  width: min(440px, 100%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-overlay);
+}
+
+.close-behavior-dialog header,
+.close-behavior-dialog footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.close-behavior-dialog header {
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.close-behavior-dialog footer {
+  border-top: 1px solid var(--border-soft);
+}
+
+.close-behavior-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.close-behavior-dialog h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.close-behavior-dialog header button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: var(--surface);
+}
+
+.close-behavior-body {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.close-behavior-body p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.close-behavior-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.close-behavior-remember input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.close-behavior-secondary,
+.close-behavior-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 10px 13px;
+  font-weight: 700;
+}
+
+.close-behavior-secondary {
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: var(--surface);
+}
+
+.close-behavior-danger {
+  border: 0;
+  color: var(--danger-strong);
+  background: var(--danger-bg);
+}
+
+.close-behavior-secondary:disabled,
+.close-behavior-danger:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+@media (max-width: 560px) {
+  .close-behavior-backdrop {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .close-behavior-dialog footer {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}

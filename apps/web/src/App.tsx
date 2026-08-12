@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { type TmuxSession } from "./api";
 import { type ComposerMode } from "./Composer";
 import { AppShell } from "./AppShell";
+import { CloseBehaviorDialog } from "./CloseBehaviorDialog";
 import { HostTrustDialog } from "./HostTrustDialog";
 import { type MobilePanel } from "./MobileNavigation";
 import { type MobileTerminalSheet } from "./MobileTerminalChrome";
 import { type QueuedTerminalInput } from "./NativeTerminal";
 import { loadLastWindowSelection } from "./last-window-selection";
+import { useCloseBehavior } from "./useCloseBehavior";
 import { useGatewayAccessToken } from "./useGatewayAccessToken";
 import { useHostHeartbeat } from "./useHostHeartbeat";
 import { useHostWorkspace } from "./useHostWorkspace";
@@ -82,6 +84,7 @@ export function App() {
     onError: setError,
     onTrustHost: handleTrustHost,
   });
+  const closeBehavior = useCloseBehavior();
   const hostTrusted = trustPrompt.isHostTrusted(selectedHost);
   const sshCredential = useSSHCredentialToken(Boolean(selectedHost?.hasCredential));
   const terminalSessionKey = selectedHostId && selection.selectedSessionName && selection.selectedWindowIndex !== null
@@ -398,6 +401,12 @@ export function App() {
         onUpdateHost={handleUpdateHost}
       />
       <HostTrustDialog request={trustPrompt.request} trusting={trustPrompt.trusting} onCancel={cancelHostTrust} onTrust={() => void trustPrompt.confirmHostTrust()} />
+      <CloseBehaviorDialog
+        visible={closeBehavior.dialogVisible}
+        onExit={closeBehavior.handleExit}
+        onMinimize={closeBehavior.handleMinimize}
+        onCancel={closeBehavior.handleCancelDialog}
+      />
     </>
   );
 

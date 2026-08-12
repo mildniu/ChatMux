@@ -525,6 +525,8 @@ name = "chatmux"
 version = "0.0.2"
 dependencies = [
  "keyring",
+ "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-shell",
