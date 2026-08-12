@@ -32,7 +32,7 @@ export function bindTerminalPaste(options: TerminalPasteOptions) {
     void pasteTerminalClipboard({ file, text }, options);
   };
   options.terminal.attachCustomKeyEventHandler((event) => {
-    const result = handleTerminalKeyEvent(event, () => {
+    const result = handleTerminalKeyEvent(event, options.terminal, () => {
       keyboardPasteFallbackTimer = clearKeyboardPasteFallback(keyboardPasteFallbackTimer);
       keyboardPasteFallbackTimer = window.setTimeout(() => {
         keyboardPasteFallbackTimer = 0;
@@ -61,7 +61,18 @@ function firstPastedFile(data: DataTransfer | null) {
   return null;
 }
 
-function handleTerminalKeyEvent(event: KeyboardEvent, scheduleFallback: () => void) {
+function handleTerminalKeyEvent(event: KeyboardEvent, terminal: Terminal, scheduleFallback: () => void) {
+  if (isKeyboardCopy(event)) {
+    if (event.type === "keydown") {
+      const selection = terminal.getSelection();
+      if (selection) {
+        void copyToClipboard(selection);
+        terminal.clearSelection();
+        return false;
+      }
+    }
+    return true;
+  }
   if (!isKeyboardPaste(event)) {
     return true;
   }
@@ -71,8 +82,33 @@ function handleTerminalKeyEvent(event: KeyboardEvent, scheduleFallback: () => vo
   return false;
 }
 
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // Fallback: use a temporary textarea + execCommand for environments
+    // where navigator.clipboard is not available (e.g. non-secure contexts)
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      document.execCommand("copy");
+    } catch {
+      // Ignore copy errors
+    }
+    document.body.removeChild(textarea);
+  }
+}
+
 function isKeyboardPaste(event: KeyboardEvent) {
   return event.key.toLowerCase() === "v" && (event.ctrlKey || event.metaKey);
+}
+
+function isKeyboardCopy(event: KeyboardEvent) {
+  return event.key.toLowerCase() === "c" && (event.ctrlKey || event.metaKey);
 }
 
 async function pasteFromBrowserClipboard(target: PasteTarget) {

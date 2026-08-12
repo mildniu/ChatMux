@@ -404,8 +404,6 @@
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  touch-action: none;
-  user-select: none;
 }
 
 .terminal-screen .xterm {
@@ -416,11 +414,6 @@
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch;
   scrollbar-color: var(--term-border-strong) var(--term-bg);
-}
-
-.terminal-screen .xterm-screen {
-  user-select: text;
-  -webkit-user-select: text;
 }
 
 .terminal-shell.loading .terminal-screen .xterm {
