@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 const defaultSSHPort = 22
@@ -64,10 +64,17 @@ type Store struct {
 }
 
 func Open(path string) (*Store, error) {
-	db, err := sql.Open("sqlite3", path)
+	// Pass pragmas via the DSN so every connection in the pool inherits them.
+	// modernc.org/sqlite uses _pragma query params; a single db.Exec("PRAGMA")
+	// only affects one pooled connection, not all of them.
+	dsn := fmt.Sprintf("%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)", path)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
+
+	// Limit to one writer connection to avoid lock contention entirely.
+	db.SetMaxOpenConns(1)
 
 	store := &Store{db: db}
 	if err := store.migrate(context.Background()); err != nil {

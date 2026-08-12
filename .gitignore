@@ -29,3 +29,9 @@ coverage
 /apps/web/src-tauri/target/
 /apps/web/src-tauri/binaries/chatmux-gateway-*
 !/apps/web/src-tauri/binaries/.gitkeep
+
+# Build artifacts
+ChatMux-portable.exe
+ChatMux_*.exe
+.temp/
+scan-disk.ps1
